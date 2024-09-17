@@ -66,6 +66,9 @@
     }
     $whereami = $_SERVER['PHP_SELF'];   // Retrieve where we are
     //$whereami = $_SERVER['REQUEST_URI'];    // Retrieve where we are, alternative method
+    $autoredirect_delay = max(0, round($autoredirect_delay));   // Ensure that the redirect delay is a positive whole number
+    $chat_min_msg_delay = max(0, round($chat_min_msg_delay));   // Ensure that the message delay is a positive whole number
+    $chat_min_refresh_delay = max(0, round($chat_min_refresh_delay));   // Ensure that the refresh delay is a positive whole number
     $username_regex = '[a-zA-Z_][a-zA-Z0-9_]*';
     
     ob_start();
@@ -502,6 +505,29 @@
         return $translations[$str][$lang] ?? $str;  // ??-operator: return the first, otherwise the second.
     }
     
+    function mkpath($path) {    // https://stackoverflow.com/a/6650840
+        if(@mkdir($path) or file_exists($path)) {
+            return true;
+        }
+        return (mkpath(dirname($path)) and mkdir($path));
+    }
+    
+    // Ensure the file system is set up correctly for this script to work
+    mkpath($secret_data_location);  // Create the dir if it doesn't exist, ignore it if it already does.
+    if (!is_dir($secret_data_location)) {
+        http_response_code(500);
+        die(untemplate([
+            'page_title' => translate('Server-side misconfiguration'),
+            'page_desc' => translate('This chat page is non-functional because of an internal error.'),
+            'additional_headers' => '',
+            'page_body' => untemplate([
+                'location' => $secret_data_location,
+                'admin_email' => '<a href="mailto:'.htmlentities($site_admin).'">'.htmlentities($site_admin).'</a>'
+            ], 
+            '<h2>'.translate('The chat application has crashed!').'</h2>'.translate('If you don\'t know what\'s going on, try again later.<br>Incase the issue persists contact the administrator at the following email address: {admin_email}.').'<br><br><details><summary>'.translate('If you are the server admin:').'</summary>'.translate('Please ensure that the directory in <code title="code section &quot;config variables&quot;">$secret_data_location</code> is readable and writeable by the chat script.').'</details>'), 
+        ], $emptydoc));
+    }
+    
     // Start the session
     session_set_cookie_params(['path'=>$whereami]); // Specify that the session cookie should only be set for the chat application
     session_start();    // Try to pick up an existing session or create a new one
@@ -554,30 +580,13 @@
                 'page_body' => ob_get_clean()
             ], $emptydoc));
         }
+        
+        // Ensure that the user always has a place to go:
+        if (!isset($_SESSION['room'])) {
+            $_SESSION['room'] = $main_chat_room_name;
+        }
     } else {
         // If no username is set, don't check if the session might be hijacked as no user is logged into it.
-    }
-    
-    function mkpath($path) {    // https://stackoverflow.com/a/6650840
-        if(@mkdir($path) or file_exists($path)) {
-            return true;
-        }
-        return (mkpath(dirname($path)) and mkdir($path));
-    }
-    
-    mkpath($secret_data_location);  // Create the dir if it doesn't exist, ignore it if it already does.
-    if (!is_dir($secret_data_location)) {
-        http_response_code(500);
-        die(untemplate([
-            'page_title' => translate('Server-side misconfiguration'),
-            'page_desc' => translate('This chat page is non-functional because of an internal error.'),
-            'additional_headers' => '',
-            'page_body' => untemplate([
-                'location' => $secret_data_location,
-                'admin_email' => '<a href="mailto:'.htmlentities($site_admin).'">'.htmlentities($site_admin).'</a>'
-            ], 
-            '<h2>'.translate('The chat application has crashed!').'</h2>'.translate('If you don\'t know what\'s going on, try again later.<br>Incase the issue persists contact the administrator at the following email address: {admin_email}.').'<br><br><details><summary>'.translate('If you are the server admin:').'</summary>'.translate('Please ensure that the directory in <code title="code section &quot;config variables&quot;">$secret_data_location</code> is readable and writeable by the chat script.').'</details>'), 
-        ], $emptydoc));
     }
     
     function getFileExclusiveWriteAccess($fname) {
@@ -684,17 +693,18 @@
     
     function find_user($name) {
         global $secret_data_location;
-        return is_file("$secret_data_location/users/$name.json");
+        return is_file("$secret_data_location/user/by-name/$name.json");
     }
     
     function find_user_by_email($email) {
-        //TODO: Implement finding a user name by the email they are gegistered with!
-        return '';
+        global $secret_data_location;
+        $hash = md5($email);
+        return is_file("$secret_data_location/user/by-email/$hash.json");
     }
     
     function verify_user_password($username, $password) {
         global $secret_data_location;
-        $userfile = $secret_data_location.'/users/'.$_POST['username'].'.json';
+        $userfile = $secret_data_location.'/user/by-name/'.$_POST['username'].'.json';
         $fh = getFileExclusiveReadAccess($userfile);
         $result = password_verify($_POST['password'], json_decode(fread($fh, filesize($userfile)), true)['password']);
         flock($fh, LOCK_UN);
@@ -721,7 +731,7 @@
                 die(untemplate([
                     'page_title' => translate('Logout'),
                     'page_desc' => translate('Your logout request has been processed.'),
-                    'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="3; url='.$whereami.'">',
+                    'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.$autoredirect_delay.'; url='.$whereami.'">',
                     'page_body' => translate('You\'ve been logged out.')
                 ], $emptydoc));
                 break;
@@ -733,7 +743,7 @@
                     die(untemplate([
                         'page_title' => translate('Signup error'),
                         'page_desc' => translate('There was an error creating an account for you.'),
-                        'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="3; url='.$whereami.'#signup">',
+                        'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.$autoredirect_delay.'; url='.$whereami.'#signup">',
                         'page_body' => $reason
                     ], $emptydoc));
                 }
@@ -799,10 +809,10 @@
             case 'confirmsignup': {
                 if (isset($_SESSION['signin_otc']) && isset($_SESSION['signin_details'])) { // If there is a pending signin request
                     if (isset($_POST['otc']) && $_POST['otc']==$_SESSION['signin_otc']) { // If the OTC is correct
-                        mkpath($secret_data_location.'/users/');
+                        mkpath($secret_data_location.'/user/by-name/');
                         $signin_details = json_decode($_SESSION['signin_details'], true);
                         file_put_contents(
-                            $secret_data_location.'/users/'.$signin_details['username'].'.json',
+                            $secret_data_location.'/user/by-name/'.$signin_details['username'].'.json',
                             json_encode([
                                 'username' => $signin_details['username'],
                                 'password' => password_hash($signin_details['password'], $password_hash_algorithm),
@@ -825,11 +835,15 @@
                             ]),
                             LOCK_EX
                         );
+                        @symlink(   // Make finding the user by email easy
+                            $secret_data_location.'/user/by-name/'.$signin_details['username'].'.json', 
+                            $secret_data_location.'/user/by-email/'.md5($signin_details['email']).'.json'
+                        );
                         session_destroy();  // Get rid of the signup session, create a new one on login.
                         die(untemplate([
                             'page_title' => translate('Signin success!'),
                             'page_desc' => translate('Your account has been successfully created!'),
-                            'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="3; url='.$whereami.'#login">',
+                            'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.$autoredirect_delay.'; url='.$whereami.'#login">',
                             'page_body' => translate('Your account was successfully created!<br>Please log in on the next page using your newly-created account.')
                         ], $emptydoc));
                     } else {
@@ -837,7 +851,7 @@
                         die(untemplate([
                             'page_title' => translate('Signup error'),
                             'page_desc' => translate('There was an error creating an account for you.'),
-                            'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="3; url='.$whereami.'#signup">',
+                            'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.$autoredirect_delay.'; url='.$whereami.'#signup">',
                             'page_body' => translate('You did not specify the correct OTC for signup, please try again.')
                         ], $emptydoc));
                     }
@@ -845,7 +859,7 @@
                     die(untemplate([
                         'page_title' => translate('Signup error'),
                         'page_desc' => translate('There was an error creating an account for you.'),
-                        'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="3; url='.$whereami.'#signup">',
+                        'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.$autoredirect_delay.'; url='.$whereami.'#signup">',
                         'page_body' => translate('There is no signup for you to validate!<br>Please ensure that you have cookies enabled and try to sign up again!')
                     ], $emptydoc));
                 }
@@ -853,12 +867,13 @@
             }
             case 'login': {
                 function login_success() {
+                    global $autoredirect_delay;
                     global $whereami;
                     global $emptydoc;
                     die(untemplate([
                         'page_title' => translate('Login success'),
                         'page_desc' => translate('You logged in successfully.'),
-                        'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="3; url='.$whereami.'?action=viewchat">',
+                        'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.$autoredirect_delay.'; url='.$whereami.'?action=viewchat">',
                         'page_body' => untemplate([
                                 'whereami' => $whereami
                             ], translate('You logged in successfully and will soon be redirected to <a href="{whereami}?action=viewchat">the chat view</a>.'))
@@ -878,7 +893,7 @@
                         die(untemplate([
                             'page_title' => translate('Login error'),
                             'page_desc' => translate('Your login attempt failed.'),
-                            'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="3; url='.$whereami.'#login">',
+                            'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.$autoredirect_delay.'; url='.$whereami.'#login">',
                             'page_body' => translate('The credentials you provided are incorrect!')
                         ], $emptydoc));
                     }
@@ -890,7 +905,7 @@
                     die(untemplate([
                         'page_title' => translate('Please don\'t do that!'),
                         'page_desc' => translate('You submitted an incorrect login request.'),
-                        'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="3; url='.$whereami.'#login">',
+                        'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.$autoredirect_delay.'; url='.$whereami.'#login">',
                         'page_body' => translate('You submitted an incorrect login request with either the user name, password or both missing.')
                     ], $emptydoc));
                 }
@@ -906,8 +921,8 @@
                     die(untemplate([
                         'page_title' => translate('Spectate chat'),
                         'page_desc' => translate('Sorry, you aren\'t logged in!'),
-                        'additional_headers' => '<meta http-equiv="refresh" content="3; url='.$whereami.'?action=spectatechat">',
-                        'page_body' => translate('You have to be logged in to interact with the chat!').'<br><a href="'.$whereami.'#login">'.translate('Log in').'</a> <a href="'.$whereami.'?action=spectatechat" autofocus>'.translate('Spectate (wait 3s)').'</a>'
+                        'additional_headers' => '<meta http-equiv="refresh" content="'.$autoredirect_delay.'; url='.$whereami.'?action=spectatechat">',
+                        'page_body' => translate('You have to be logged in to interact with the chat!').'<br><a href="'.$whereami.'#login">'.translate('Log in').'</a> <a href="'.$whereami.'?action=spectatechat" autofocus>'.translate('Spectate (wait '.$autoredirect_delay.'s)').'</a>'
                     ], $emptydoc));
                 }
                 /* About answertomsg:
@@ -975,7 +990,7 @@
                 die(untemplate([
                     'page_title' => translate('Successfully ignored session hijack!'),
                     'page_desc' => translate('The suspected session hijack was successfully erased from the session variables.'),
-                    'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="3; url='.$whereami.$redirectaction.'">',
+                    'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.$autoredirect_delay.'; url='.$whereami.$redirectaction.'">',
                     'page_body' => translate('The session hijack has been cleared out of the server\'s memory.<br>Note that if another hijack should be detected, the warning will be issued again.<br>You will be redirected to the action you tried to perform when you received the warning; this will fail should that action have required hidden variables.')
                 ], $emptydoc));
                 break;
