@@ -25,7 +25,7 @@
     $lang = 'en';   // (default: 'en') Set this to any valid HTML two-letter language code (see the code section "translation strings" for more details)
     $allow_user_set_lang = true;    // (default: true) If this is set to true the user can specify through a cookie "lang" what language they want the page to be displayed in. If that cookie is not set or this option is disabled the language set in $lang will be used.
     $password_minimum_length = 8;   // (default: 8) A whole number that decides the minimum length that is accepted for any user's password. It is recommended to let this be on the default value.
-    $chat_min_refresh_delay = 1;    // (default: 1) The minimum amount of time to wait between chat refreshes. If this is 1 or lower all refresh requests are honoured and just wait for the set amount of time if the delay isn't over yet and no other waiting refresh request is running in parallel. Negative numbers are treated as 0.
+    $chat_min_refresh_delay = 5;    // (default: 5) The minimum amount of time to wait between chat refreshes. If this is 1 or lower all refresh requests are honoured and just wait for the set amount of time if the delay isn't over yet and no other waiting refresh request is running in parallel. Negative numbers are treated as 0.
     $chat_min_msg_delay = 3;    // (default: 3) The minimum amount of time to wait between sent chat messages. If this is 1 or lower all message send requests are honoured and just wait for the set amount of time if the delay isn't over yet and no other waiting message send request is running in parallel. Negative numbers are treated as 0.
     $chat_msg_max_len = 0xfff;  // (default: 4095) The maximum number of characters per message. This is validated both client-side (to avoid unecessary requests) and server-side (to prevent cheaters from circumventing the rules).
     $signin_require_valid_email = true; // (default: true) If this option is disabled (_NOT_ recommended!) the OTC for signin is autofilled in the dialog that asks for it instead of being sent via email.
@@ -663,7 +663,7 @@
         if ($interactive) {
             ob_start();
         ?><div class="msgbtns">
-                <form action="<?php echo $whereami; ?>?action=answertomsg" method="POST" enctype="multipart/form-data" target="_parent">
+                <form action="<?php echo $whereami; ?>?action=answertomsg&paused=true" method="POST" enctype="multipart/form-data" target="_parent">
                     <input type="hidden" name="username" value="<?php echo $username; ?>">
                     <input type="hidden" name="timestamp" value="<?php echo $timestamp; ?>">
                     <input type="submit" title="<?php echo str_replace('{username}', $username, translate('Answer @{username}')); ?>" value="⮣"><!-- U+2BA3 -->
@@ -886,6 +886,7 @@
                         verify_user_password($_POST['username'], $_POST['password'])
                     ) {
                         // Correct login details
+                        $_SESSION['username'] = $_POST['username']; // Store that the user is logged into this session
                         login_success();
                     } else {
                         // Wrong login details, more detail isn't given to the user
@@ -917,23 +918,51 @@
             }
             case 'viewchat':
             case 'answertomsg': {
-                if (!isset($_SESSION['username'])) {
-                    die(untemplate([
-                        'page_title' => translate('Spectate chat'),
-                        'page_desc' => translate('Sorry, you aren\'t logged in!'),
-                        'additional_headers' => '<meta http-equiv="refresh" content="'.$autoredirect_delay.'; url='.$whereami.'?action=spectatechat">',
-                        'page_body' => translate('You have to be logged in to interact with the chat!').'<br><a href="'.$whereami.'#login">'.translate('Log in').'</a> <a href="'.$whereami.'?action=spectatechat" autofocus>'.translate('Spectate (wait '.$autoredirect_delay.'s)').'</a>'
-                    ], $emptydoc));
-                }
                 /* About answertomsg:
                  * The same as viewchat, except that the embedded chat view is paused and focused on the selected message, as well as that the message writing form answers to the selected message instead of just writing a message to the entire chatroom.   
                  * To stop answering and just write a normal message again, just submit an empty answer.   
                  * While generating the chat view, the $interactive argument for formatChatMsg is set to false only for the message that is being answered to.   
                  * The message submission form will also have a little "Answer to @{username}" text above the message input field.   
                  */
+                if (!isset($_SESSION['username'])) {
+                    die(untemplate([
+                        'page_title' => translate('Spectate chat'),
+                        'page_desc' => translate('Sorry, you aren\'t logged in!'),
+                        'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.$autoredirect_delay.'; url='.$whereami.'?action=spectatechat">',
+                        'page_body' => translate('You have to be logged in to interact with the chat!').'<br><a href="'.$whereami.'#login">'.translate('Log in').'</a> <a href="'.$whereami.'?action=spectatechat" autofocus>'.translate('Spectate (wait '.$autoredirect_delay.'s)').'</a>'
+                    ], $emptydoc));
+                }
                 //TODO: Implement this!
                 ob_start();
-                ?><?php
+                $answeringto = '';  //TODO: Fill this with the timestamp and username of the message to respond to!
+                $iframe_errmsg = translate('If you see this error message it means that your browser does not support the &lt;iframe&gt; element. Iframes are <b>absolutely necessary</b> for this chat application to work, op please switch to a browser that follows the HTML5 standard!');
+                ?><iframe class="chatview" src="<?php echo $whereami; ?>?action=getchat<?php if ($_GET['action']==='answertomsg') { echo '&paused=true&answeringto='.$answeringto; } ?>"><?php echo $iframe_errmsg; ?></iframe>
+        <iframe class="writeform" src="<?php echo $whereami; ?>?action=getwriteform<?php if ($_GET['action']==='answertomsg') { echo '&answeringto='.$answeringto; } ?>"><?php echo $iframe_errmsg; ?></iframe><?php
+                die(untemplate([
+                    'page_title' => translate('{room_name} • Chat view'),   // {room_name} is replaced below because the insertions are done sequentially by untemplate
+                    'page_desc' => translate('Viewing {room_name} in JSFC as {user_name}'),
+                    'additional_headers' => '<meta name="robots" content="noindex">',
+                    'page_body' => ob_get_clean(),
+                    'room_name' => '',  //TODO: Implement getting room name
+                    'user_name' => (($_SESSION['username'])?$_SESSION['username']:'')
+                ], $emptydoc));
+                break;
+            }
+            case 'getchat': {
+                //TODO: Implement this!
+                if (!isset($_SESSION['username'])) {
+                    die(untemplate([
+                        'page_title' => translate('Spectate chat'),
+                        'page_desc' => translate('Sorry, you aren\'t logged in!'),
+                        'additional_headers' => '<meta name="robots" content="noindex">',
+                        'page_body' => translate('You have to be logged in to interact with the chat!').'<<br><a href="'.$whereami.'#login" target="_parent">'.translate('Log in').'</a> <a href="'.$whereami.'?action=spectatechat" autofocus>'.translate('Spectate (wait '.$autoredirect_delay.'s)').'</a>>'
+                    ], $emptydoc));
+                }
+                $formatted_chat = '';
+                if (!isset($_SESSION['chat_msg_count'])) {
+                    $_SESSION['chat_msg_count'] = 0xff; // Set this to 255 by default, can later probably be changed and should get a configurable limit.
+                }
+                //TODO: Format the chat here!
                 die(untemplate([
                     'page_title' => translate('{room_name} • Chat view'),   // {room_name} is replaced below because the insertions are done sequentially by untemplate
                     'page_desc' => translate('Viewing {room_name} in JSFC as {user_name}'),
@@ -941,19 +970,8 @@
                         ?'<meta name="robots" content="noindex">'
                         :'<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.((isset($_SESSION['chat_refresh_delay']))?max($_SESSION['chat_refresh_delay'],$chat_min_refresh_delay):$chat_min_refresh_delay).'">'),
                     'page_body' => ob_get_clean(),
-                    'room_name' => '',  //TODO: Implement getting room name
+                    'room_name' => $_SESSION['room'],
                     'user_name' => $_SESSION['username']
-                ], $emptydoc));
-                break;
-            }
-            case 'getchat': {
-                //TODO: Implement this!
-                die(untemplate([
-                    'page_title' => translate('{room_name} • Chat view'),
-                    'page_desc' => translate('Viewing {room_name} in JSFC'),
-                    'additional_headers' => ((isset($_GET['paused']))
-                        ?'<meta name="robots" content="noindex">'
-                        :'<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.((isset($_SESSION['chat_refresh_delay']))?max($_SESSION['chat_refresh_delay'],$chat_min_refresh_delay):$chat_min_refresh_delay).'">')
                 ], $emptydoc));
                 break;
             }
