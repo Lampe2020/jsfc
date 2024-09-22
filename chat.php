@@ -26,8 +26,14 @@
     $allow_user_set_lang = true;    // (default: true) If this is set to true the user can specify through a cookie "lang" what language they want the page to be displayed in. If that cookie is not set or this option is disabled the language set in $lang will be used.
     $password_minimum_length = 8;   // (default: 8) A whole number that decides the minimum length that is accepted for any user's password. It is recommended to let this be on the default value.
     $chat_min_refresh_delay = 5;    // (default: 5) The minimum amount of time to wait between chat refreshes. If this is 1 or lower all refresh requests are honoured and just wait for the set amount of time if the delay isn't over yet and no other waiting refresh request is running in parallel. Negative numbers are treated as 0.
+    /* Currently disabled, will maybe enable when base functionality is there. 
+    $chat_disable_refreshless_update = false;   // (default: false) If this is set to true the script will not attempt to keep the connection open and automatically append more messages to the already-sent chat log in regular intervals. This will have the benefit of not needing to reload the chat log iframe over and over again, as well as keeping more than the server-side message limit visible, at the cost of automatic scrolling not properly working and there being a connection for each client, that is kept open until the user leaves.
+    $chat_refreshless_update_rate = 3;  // (default: 3) This is the interval in which the server will check for new chat messages to append to the client's chat log. 
+    */
     $chat_min_msg_delay = 3;    // (default: 3) The minimum amount of time to wait between sent chat messages. If this is 1 or lower all message send requests are honoured and just wait for the set amount of time if the delay isn't over yet and no other waiting message send request is running in parallel. Negative numbers are treated as 0.
     $chat_msg_max_len = 0xfff;  // (default: 4095) The maximum number of characters per message. This is validated both client-side (to avoid unecessary requests) and server-side (to prevent cheaters from circumventing the rules).
+    $chat_max_msgs_per_request = 0xff;  // (default: 255) This limits how many messages a user can load in one request.
+    $chat_disable_spectate = true;  // (default: true) If this is set to false users can read the chat without being logged in. This allows them to read all chats, including those that they have been banned from. Because of that, spectating is disabled by default and recommended to be left disabled.
     $signin_require_valid_email = true; // (default: true) If this option is disabled (_NOT_ recommended!) the OTC for signin is autofilled in the dialog that asks for it instead of being sent via email.
     $autoredirect_delay = 3;    // (default: 3) The number of seconds to wait before automatically redirecting. Should in most cases be left at the default value. Negative numbers are treated as 0.
     $main_chat_room_name = 'general';   // (default: 'general') The name of the main chat room. It is automatically created, can not be deleted and users that are banned from it are banned from all rooms. This is also where everyone goes if they send the /home command. In most cases this can be left at the default value. 
@@ -35,13 +41,13 @@
     $site_name = 'JSFC'; // The name of your site. It is displayed in each page's title.
     $site_admin = 'webmaster'; // (default: 'webmaster') Enter your email address here if you want users to be able to contact you in the case of an error or question. If you set this to a value containing no @ character, the server assumes it means a username on the server this script is ran on and automatically completes this with the value from $_SERVER['SERVER_NAME']. Note that @localhost addresses will not work for this, as that would make users' email service send email to themselves instead of you.
     $chatmaster = 'chatmaster';    // (default: 'chatmaster') This is the username that has full administrative privileges over the entire chat application. This one user is fully immune to any rate limits set by this script. Note that the registration form will block this username as existing even if it doesn't already exist, so its user definition file has to manually be created and populated with username, password hash and email address. This is to make it as hard as possible to illegitmiately gain access to this high-privileged account. 
-    $secret_data_location = '/tmp/.chat-secrets';   // (default: '/tmp/.chat-secrets') This is the server-side path to a directory for this script to store logins and the chat log in. This should not be in a publicly-accessible directory, as otherwise the stored accounts could easily be compromised and possibly also external accounts that use the same or similar login details. By default this is in /tmp, but if you want accounts in this script to be permanent you should change this to a persistent storage location. Note that /tmp and /var/tmp on Linux may actually land inside /tmp/systemd-private-*-apache2.service-*/ (if the apache2.service file has the PrivateTmp option enabled).
+    $secret_data_location = '/tmp/.chat-secrets';   // (default: '/tmp/.chat-secrets') This is the server-side path to a directory for this script to store logins and the chat logs in. This should not be in a publicly-accessible directory, as otherwise the stored accounts could easily be compromised and possibly also external accounts that use the same or similar login details. By default this is in /tmp, but if you want accounts in this script to be permanent you should change this to a persistent storage location. Note that /tmp and /var/tmp on Linux may actually land inside /tmp/systemd-private-*-apache2.service-*/ (if the apache2.service file has the PrivateTmp option enabled).
     $password_hash_algorithm = PASSWORD_DEFAULT;    // (default: PASSWORD_DEFAULT) The password algorithm to use for storing and validating the users' passwords. This should be left at the default, but if you don't want this to change when you switch PHP versions you should specify which one to use.
     
     // ---------- END config variables ----------
     
     /* Idéer: (kommentaren kommer raderas när alla idéer är implementerade)
-     * Implementera chattrum genom kommandot /room, meddelanden sparade i separata loggfil, sessionsvariablerna visar vilket rum en användare är i. Kommandot /exit går tillbaka till huvudrummet och gör ingenting i huvudrummet. Bara administratörer kan skapa eller radera rum, alla rumsadministratörer kan utesluta någon ur rummet. Bara administratörer kan ge eller ta bort administratörsrollen från någon, men administratörerna kan säga upp sig själva genom kommandot /resign i rummet de vill säga upp sig i. 
+     * Implementera chattrum genom kommandot /room, meddelanden sparade i separata loggfil, sessionsvariablerna visar vilket rum en användare är i. Kommandot /exit går tillbaka till huvudrummet och loggar användaren ut om den är i huvudrummet. Bara administratörer kan skapa eller radera rum, alla rumsadministratörer kan utesluta någon ur rummet. Bara administratörer kan ge eller ta bort administratörsrollen från någon, men administratörerna kan säga upp sig själva genom kommandot /resign i rummet de vill säga upp sig i. 
      * Flytta skrivformuläret till huvudfönstret, sparar förfrågningar och uppdaterar chatten automatiskt direkt. 
      * Visa vilka meddelanden är egna genom högerjustering (selektor .chatmsg.msg_by_{username}) { text-align: right; } )
      * Möjliggör visuella pings genom att färglägga alla meddelanden som svarar på användaren
@@ -53,6 +59,9 @@
         error_reporting(E_ALL);
         ini_set('display_errors', 'On');
     }
+    
+    $release_version = '0.0.0';
+    $release_channel = 'pre-alpha';
     
     $supported_langs = ['en','de','sv'];    // This array contains every language code that is supported by this script
     if ($allow_user_set_lang && isset($_COOKIE['lang'])) {  // If the 
@@ -299,6 +308,18 @@
                 height: 2em;
                 margin: 0px;
                 border: none;
+            }
+            
+            div.btnbar {
+                position: fixed;
+                bottom: 1em;
+                right: 1em;
+                padding: .3em;
+            }
+            
+            input[type=submit]#pausebtn {
+                font-family: monospace;
+                padding: 1em;
             }
             
             /* ---------- END chat view style ---------- */
@@ -627,8 +648,8 @@
         }
         
         // Ensure that the user always has a place to go:
-        if (!isset($_SESSION['room'])) {
-            $_SESSION['room'] = $main_chat_room_name;
+        if (!isset($_SESSION['chatroom'])) {
+            $_SESSION['chatroom'] = $main_chat_room_name;
         }
     } else {
         // If no username is set, don't check if the session might be hijacked as no user is logged into it.
@@ -703,9 +724,9 @@
         return false;
     }
     
-    function formatChatMsg($msg, $timeLastLoaded=null, $interactive=true) {
+    function formatChatMsg($msgid, $msg, $timeLastLoaded=null, $interactive=true) {
         // Example message:             1726215308<Lampe2020@>Hello, how're you feelin' today?
-        // Example answering message:   1726215357<Testuser@Lampe2020:1726215308>Very well, you?
+        // Example answering message:   1726215357<Testuser@Lampe2020:0>Very well, you?
         global $whereami;
         [$timestamp, $rest] = explode('<', $msg, 2);
         [$at, $message] = explode('>', $rest, 2);
@@ -716,7 +737,7 @@
                 <form action="<?php echo $whereami; ?>?action=answertomsg&paused=true" method="POST" enctype="multipart/form-data" target="_parent">
                     <input type="hidden" name="username" value="<?php echo $username; ?>">
                     <input type="hidden" name="timestamp" value="<?php echo $timestamp; ?>">
-                    <input type="submit" title="<?php echo str_replace('{username}', $username, translate('Answer @{username}')); ?>" value="⮣"><!-- U+2BA3 -->
+                    <input type="submit" title="<?php echo str_replace('{username}', $username, translate('Answer @{username}')); ?>" value="&#x2BA3;">
                 </form>
             </div><?php
             $buttons = ob_get_clean();
@@ -729,12 +750,19 @@
         } else {
             $isnew = '';
         }
-        $retval = '<div class="chatmsg'.$isnew.' msg_by_'.$username.'" id="msg_'.$username.'_'.$timestamp.'">';
+        $retval = '<div class="chatmsg'.$isnew.' msg_by_'.$username.'" id="msg_'.$msgid.'">';
         if ($answerto) {    // Add the answer reference
-            [$answerto_username, $answerto_timestamp] = explode(':', $answerto, 2);
+            [$answerto_username, $answerto_msgid] = explode(':', $answerto, 2);
             ob_start();
         ?>
-            <a class="answerto" id="answerto_<?php echo $answerto_username; ?>_<?php echo $answerto_timestamp; ?>" href="#msg_<?php echo $answerto_username; ?>_<?php echo $answerto_timestamp; ?>"> @<?php echo $answerto_username; ?></a><style>body:has(a.answerto#answerto_<?php echo $answerto_username; ?>_<?php echo $answerto_timestamp; ?>:hover) div.chatmsg.msg_by_<?php echo $answerto_username; ?>#msg_<?php echo $answerto_username; ?>_<?php echo $answerto_timestamp; ?>{background-color:orange;color:black;}</style>
+            <!-- TODO: Maybe pause the chat when the user clicks on a message highlight link? -->
+            <a class="answerto" id="answerto_<?php echo $answerto_username; ?>_<?php echo $answerto_msgid; ?>" href="#msg_<?php echo $answerto_msgid; ?>"> @<?php echo $answerto_username; ?></a>
+            <style>
+                body:has(a.answerto#answerto_<?php echo $answerto_username; ?>_<?php echo $answerto_msgid; ?>:hover) div.chatmsg.msg_by_<?php echo $answerto_username; ?>#msg_<?php echo $answerto_msgid; ?> {
+                    background-color: orange;
+                    color: black;
+                }
+            </style>
         <?php
             $retval = $retval.ob_get_clean();
         }
@@ -762,6 +790,11 @@
         return $result;
     }
     
+    function msgfilter($msg) {
+        $msg = str_replace("\r", ' ', str_replace("\n", ' ', $msg));    // Remove all line breaks from the message
+        return $msg;
+    }
+    
     if (isset($_GET['action'])) {
         switch ($_GET['action']) {
             //TODO: Rate-limit each action seperately to reduce server load, using HTTP error "429 Too Many Requests" with the timeout in the "Retry-After" header.
@@ -773,7 +806,7 @@
                     'page_title' => 'Chat test',
                     'page_desc' => base64_encode('Alle meine Entchen...'),
                     'additional_headers' => '<meta name="robots" content="noindex">',
-                    'page_body' => formatChatMsg("1726215308<Lampe2020@>Hello, how're you feelin' today?", 1726215309).formatChatMsg("1726215357<Testuser@Lampe2020:1726215308>Very well, you?", 1726215309)
+                    'page_body' => formatChatMsg(0, "1726215308<Lampe2020@>Hello, how're you feelin' today?", 1726215309).formatChatMsg(1, "1726215357<Testuser@Lampe2020:0>Very well, you?", 1726215309)
                 ], $emptydoc)); //debug
             }
             case 'logout': {
@@ -937,6 +970,7 @@
                     ) {
                         // Correct login details
                         $_SESSION['username'] = $_POST['username']; // Store that the user is logged into this session
+                        $_SESSION['chatroom'] = $main_chat_room_name;   // Assign the user to the default chat room
                         login_success();
                     } else {
                         // Wrong login details, more detail isn't given to the user
@@ -989,17 +1023,16 @@
                 ?><iframe class="chatview" src="<?php echo $whereami; ?>?action=getchat<?php if ($_GET['action']==='answertomsg') { echo '&paused=true&answeringto='.$answeringto; } ?>#scrolltobottom"><?php echo $iframe_errmsg; ?></iframe>
         <iframe class="writeform" src="<?php echo $whereami; ?>?action=getwriteform<?php if ($_GET['action']==='answertomsg') { echo '&answeringto='.$answeringto; } ?>"><?php echo $iframe_errmsg; ?></iframe><?php
                 die(untemplate([
-                    'page_title' => translate('{room_name} • Chat view'),   // {room_name} is replaced below because the insertions are done sequentially by untemplate
-                    'page_desc' => translate('Viewing {room_name} in JSFC as {user_name}'),
+                    'page_title' => translate('"{room_name}" • Chat view'),   // {room_name} is replaced below because the insertions are done sequentially by untemplate
+                    'page_desc' => translate('Viewing &quot;{room_name}&quot; in JSFC as {user_name}'),
                     'additional_headers' => '<meta name="robots" content="noindex">',
                     'page_body' => ob_get_clean(),
-                    'room_name' => '',  //TODO: Implement getting room name
+                    'room_name' => $_SESSION['chatroom'],
                     'user_name' => (($_SESSION['username'])?$_SESSION['username']:'')
                 ], $emptydoc));
                 break;
             }
             case 'getchat': {
-                //TODO: Implement this!
                 if (!isset($_SESSION['username'])) {
                     die(untemplate([
                         'page_title' => translate('Spectate chat'),
@@ -1008,25 +1041,90 @@
                         'page_body' => translate('You have to be logged in to interact with the chat!').'<<br><a href="'.$whereami.'#login" target="_parent">'.translate('Log in').'</a> <a href="'.$whereami.'?action=spectatechat" autofocus>'.untemplate(['delay'=>$autoredirect_delay], translate('Spectate (wait {delay}s)')).'</a>>'
                     ], $emptydoc));
                 }
-                ob_start();
+                /* Currently disabled, see section "config variables"
+                if (!$chat_disable_refreshless_update && set_time_limit(0)) {
+                    //TODO: Implement live chat update through permanent connection
+                } else {
+                    // Either the config disallows it or setting the time limit to 0 failed, we'll just do it the old-fashioned way of client-initiated refreshes. 
+                }
+                */
+                if (!isset($_SESSION['last_time_chat_refreshed'])) {
+                    $_SESSION['last_time_chat_refreshed'] = time();
+                } else if ((time() - $_SESSION['last_time_chat_refreshed']) < $chat_min_refresh_delay) {
+                    $time_left_to_wait = $chat_min_refresh_delay - (time() - $_SESSION['last_time_chat_refreshed']);
+                    if ($time_left_to_wait < 5) {
+                        sleep($time_left_to_wait);  // Just wait out the remaining time if it's less than 5 seconds, a waiting thread is less bad than several chat formattings running in parallel for the same user.
+                    } else {
+                        die(untemplate([
+                            'page_title' => translate('You\'re too fast!'),
+                            'page_desc' => translate('You are refreshing your chat view too often!'),
+                            'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.$time_left_to_wait.'">',
+                            'page_body' => untemplate([
+                                'timeout' => $chat_min_refresh_delay,
+                                'wait_time' => $time_left_to_wait
+                            ], translate('You must not reload your chat view faster than {timeout} seconds after the last reload!<br>Please wait another {wait_time}s, the page should automatically update.'))
+                        ], $emptydoc));
+                    }
+                }
+                //TODO: Implement this!
                 $formatted_chat = '';
                 if (!isset($_SESSION['chat_msg_count'])) {
                     $_SESSION['chat_msg_count'] = 0xff; // Set this to 255 by default, can later probably be changed and should get a configurable limit.
                 }
                 //TODO: Format the chat here!
-                echo '<div id="notdoneyetwarning">Please note that this chat application is <i>not at all</i> ready to use yet, i.e. the core functionality of, you know, <i>chatting</i> is not implemented yet. Please check <a href="https://github.com/Lampe2020/jsfc">my GitHub repo</a> for a newer, functional version.</div';   //TMP!
+                $chatlog_location = $secret_data_location.'/chatroom/'.$_SESSION['chatroom'].'.log';
+                if (is_file($chatlog_location)) {
+                    $chatlog = file_get_contents($chatlog_location);
+                } else {
+                    die(untemplate([
+                        'page_title' => translate('Chat not found!'),
+                        'page_desc' => translate('The chat room you were trying to read does not exist.'),
+                        'additional_headers' => '<meta name="robots" content="noindex">',
+                        'page_body' => untemplate([
+                            'chatroom' => htmlentities($_SESSION['chatroom'])
+                        ], translate('The chat room you tried to access, "{chatroom}", could not be found on the server. Please ensure you haven\'t mistyped it.'))
+                    ], $emptydoc));
+                }
+                ob_start();
+                if ($chatlog!=='') {
+                    foreach (array_slice(explode("\n", $chatlog), -$chat_max_msgs_per_request, $chat_max_msgs_per_request, true) as $msgid => $msg) {
+                        if ($msg!=='') {
+                            echo formatChatMsg($msgid, $msg, $_SESSION['last_time_chat_refreshed'], true);
+                        }
+                    }
+                } else {
+                    echo translate('Pssssht, it\'s very quiet in here!');
+                }
+                $_SESSION['last_time_chat_refreshed'] = time();
                 ?><div class="btnbar">
-            
+            <form action="<?php echo $whereami; ?>" method="GET">
+                <input type="hidden" name="action" value="getchat">
+                <?php
+                    if (!isset($_GET['paused'])) {
+                        echo '<input type="hidden" name="paused" value="true">';
+                    }
+                ?><input type="submit" id="pausebtn" value="<?php if (isset($_GET['paused'])) {
+                    echo '|>';
+                } else {
+                    echo '||';
+                } ?>" title="<?php
+                    if (isset($_GET['paused'])) {
+                        echo translate('Click to unpause');
+                    } else {
+                        echo translate('Click to pause');
+                    }
+                ?>">
+            </form>
         </div>
         <div id="scrolltobottom" style="visibility:hidden;opacity:0%;pointer-events:none;"><?php echo translate('This is just here to make you scroll to the bottom automatically, it should be invisible.'); ?></div><?php
                 die(untemplate([
-                    'page_title' => translate('{room_name} • Chat view'),   // {room_name} is replaced below because the insertions are done sequentially by untemplate
-                    'page_desc' => translate('Viewing {room_name} in JSFC as {user_name}'),
+                    'page_title' => translate('"{room_name}" • Chat view'),   // {room_name} is replaced below because the insertions are done sequentially by untemplate
+                    'page_desc' => translate('Viewing &quot;{room_name}&quot; in JSFC as {user_name}'),
                     'additional_headers' => ((isset($_GET['paused']))
                         ?'<meta name="robots" content="noindex">'
                         :'<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.((isset($_SESSION['chat_refresh_delay']))?max($_SESSION['chat_refresh_delay'],$chat_min_refresh_delay):$chat_min_refresh_delay).'">'),
                     'page_body' => ob_get_clean(),
-                    'room_name' => $_SESSION['room'],
+                    'room_name' => $_SESSION['chatroom'],
                     'user_name' => $_SESSION['username']
                 ], $emptydoc));
                 break;
@@ -1046,11 +1144,18 @@
                         'page_body' => translate('You have to be logged in to send messages!')
                     ], $emptydoc));
                 }
-                if (!is_file($secret_data_location.'/chats/'.$_SESSION['chatroom'].'.log')) {
-                    @mkpath($secret_data_location.'/chats/');
+                $loglocation = $secret_data_location.'/chatroom/'.$_SESSION['chatroom'].'.log';
+                if (!is_file($loglocation)) {
+                    @mkpath(dirname($loglocation)); // Ensure that the folder for the chat logs exists
                 }
-                $chatlog = getFileExclusiveWriteAccess($secret_data_location.'/chats/'.$_SESSION['chatroom'].'.log');
-                
+                if (isset($_POST['msg']) && $_POST['msg']!=='') {
+                    file_put_contents($loglocation, untemplate([
+                        'timestamp' => time(),
+                        'username' => $_SESSION['username'],
+                        'answerto' => $answerto,
+                        'msg' => msgfilter($_POST['msg'])
+                    ], "{timestamp}<{username}@{answerto}>{msg}\n") , FILE_APPEND | LOCK_EX);
+                }
                 die(untemplate([
                     'page_title' => translate('Message writing form'),
                     'page_desc' => base64_encode('Never gonna give you up!'),
@@ -1073,7 +1178,9 @@
                 ob_start();
                 ?><form action="<?php echo $whereami; ?>?action=sendmsg" method="POST" enctype="multipart/form-data">
             <input type="text" name="msg" value="" placeholder="<?php echo translate('Write your message and press [ENTER] to send it.'); ?>" autofocus>
-            <input type="submit" value="&#x2b00;" title="<?php echo translate('Send!'); ?>">
+            <?php if (isset($_GET['answeringto'])) {
+                echo '<input type="hidden" name="answeringto" value="'.htmlentities($_GET['answeringto']).'">';
+            } ?><input type="submit" value="&#x2b00;" title="<?php echo translate('Send!'); ?>">
         </form><?php
                 die(untemplate([
                     'page_title' => translate('Message writing form'),
