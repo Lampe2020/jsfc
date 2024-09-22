@@ -120,8 +120,8 @@
             input[type=number][name=otc] {
                 -moz-appearance: textfield;
             }
-            input::-webkit-outer-spin-button,
-            input::-webkit-inner-spin-button {
+            input[type=number][name=otc]::-webkit-outer-spin-button,
+            input[type=number][name=otc]::-webkit-inner-spin-button {
                 -webkit-appearance: none;
                 margin: 0;
             }
@@ -277,6 +277,51 @@
                 background-color: orange;
             }
             /* ---------- END chat style ---------- */
+            
+            /* ---------- BEGIN chat view style ---------- */
+            
+            body:has(iframe.chatview) {
+                display: flex;
+                flex-direction: column;
+                width: 100vw;
+                height: 100vh;
+                padding: 0px;
+                margin: 0px;
+            }
+            
+            iframe.chatview {
+                flex: 1;
+                margin: 0px;
+                border: none;
+            }
+            
+            iframe.writeform {
+                height: 2em;
+                margin: 0px;
+                border: none;
+            }
+            
+            /* ---------- END chat view style ---------- */
+            
+            /* ---------- BEGIN message write form style ---------- */
+            
+            body:has(input[type=text][name=msg]) {
+                width: 100vw;
+                height: 100vh;
+                padding: 0px;
+                margin: 0px;
+            }
+            
+            body:has(input[type=text][name=msg]) form {
+                display: flex;
+                flex-direction: row;
+            }
+            
+            input[type=text][name=msg] {
+                flex: 1;
+            }
+            
+            /* ---------- END message write form style ---------- */
         </style>
         {additional_headers}
     </head>
@@ -611,6 +656,11 @@
         }
     }
     
+    function releaseFileLock($fh) {
+        fflush($fh);
+        return fclose($fh, LOCK_UN);
+    }
+    
     function createFile($fname) {
         if (!is_file($fname) && !is_dir($fname)) {
             return file_put_contents('');
@@ -936,7 +986,7 @@
                 ob_start();
                 $answeringto = '';  //TODO: Fill this with the timestamp and username of the message to respond to!
                 $iframe_errmsg = translate('If you see this error message it means that your browser does not support the &lt;iframe&gt; element. Iframes are <b>absolutely necessary</b> for this chat application to work, op please switch to a browser that follows the HTML5 standard!');
-                ?><iframe class="chatview" src="<?php echo $whereami; ?>?action=getchat<?php if ($_GET['action']==='answertomsg') { echo '&paused=true&answeringto='.$answeringto; } ?>"><?php echo $iframe_errmsg; ?></iframe>
+                ?><iframe class="chatview" src="<?php echo $whereami; ?>?action=getchat<?php if ($_GET['action']==='answertomsg') { echo '&paused=true&answeringto='.$answeringto; } ?>#scrolltobottom"><?php echo $iframe_errmsg; ?></iframe>
         <iframe class="writeform" src="<?php echo $whereami; ?>?action=getwriteform<?php if ($_GET['action']==='answertomsg') { echo '&answeringto='.$answeringto; } ?>"><?php echo $iframe_errmsg; ?></iframe><?php
                 die(untemplate([
                     'page_title' => translate('{room_name} • Chat view'),   // {room_name} is replaced below because the insertions are done sequentially by untemplate
@@ -955,14 +1005,20 @@
                         'page_title' => translate('Spectate chat'),
                         'page_desc' => translate('Sorry, you aren\'t logged in!'),
                         'additional_headers' => '<meta name="robots" content="noindex">',
-                        'page_body' => translate('You have to be logged in to interact with the chat!').'<<br><a href="'.$whereami.'#login" target="_parent">'.translate('Log in').'</a> <a href="'.$whereami.'?action=spectatechat" autofocus>'.translate('Spectate (wait '.$autoredirect_delay.'s)').'</a>>'
+                        'page_body' => translate('You have to be logged in to interact with the chat!').'<<br><a href="'.$whereami.'#login" target="_parent">'.translate('Log in').'</a> <a href="'.$whereami.'?action=spectatechat" autofocus>'.untemplate(['delay'=>$autoredirect_delay], translate('Spectate (wait {delay}s)')).'</a>>'
                     ], $emptydoc));
                 }
+                ob_start();
                 $formatted_chat = '';
                 if (!isset($_SESSION['chat_msg_count'])) {
                     $_SESSION['chat_msg_count'] = 0xff; // Set this to 255 by default, can later probably be changed and should get a configurable limit.
                 }
                 //TODO: Format the chat here!
+                echo '<div id="notdoneyetwarning">Please note that this chat application is <i>not at all</i> ready to use yet, i.e. the core functionality of, you know, <i>chatting</i> is not implemented yet. Please check <a href="https://github.com/Lampe2020/jsfc">my GitHub repo</a> for a newer, functional version.</div';   //TMP!
+                ?><div class="btnbar">
+            
+        </div>
+        <div id="scrolltobottom" style="visibility:hidden;opacity:0%;pointer-events:none;"><?php echo translate('This is just here to make you scroll to the bottom automatically, it should be invisible.'); ?></div><?php
                 die(untemplate([
                     'page_title' => translate('{room_name} • Chat view'),   // {room_name} is replaced below because the insertions are done sequentially by untemplate
                     'page_desc' => translate('Viewing {room_name} in JSFC as {user_name}'),
@@ -982,13 +1038,42 @@
             }
             case 'sendmsg': {
                 //TODO: Implement this!
+                if (!isset($_SESSION['username'])) {
+                    die(untemplate([
+                        'page_title' => translate('Please log in first!'),
+                        'page_desc' => translate('WgXcQ'),
+                        'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.$autoredirect_delay.'; url='.$whereami.'">',
+                        'page_body' => translate('You have to be logged in to send messages!')
+                    ], $emptydoc));
+                }
+                if (!is_file($secret_data_location.'/chats/'.$_SESSION['chatroom'].'.log')) {
+                    @mkpath($secret_data_location.'/chats/');
+                }
+                $chatlog = getFileExclusiveWriteAccess($secret_data_location.'/chats/'.$_SESSION['chatroom'].'.log');
+                
+                die(untemplate([
+                    'page_title' => translate('Message writing form'),
+                    'page_desc' => base64_encode('Never gonna give you up!'),
+                    'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.$chat_min_msg_delay.'; url='.$whereami.'?action=getwriteform">',
+                    'page_body' => untemplate([
+                        'n' => $chat_min_msg_delay
+                    ], translate('Your message has been sent! It should appear soon in the chat window above. To reduce server load you cannot send new messages within {n} seconds of writing your last one.'))
+                ], $emptydoc));
                 break;
             }
             case 'getwriteform': {
+                if (!isset($_SESSION['username'])) {
+                    die(untemplate([
+                        'page_title' => translate('Please log in first!'),
+                        'page_desc' => translate('WgXcQ'),
+                        'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.$autoredirect_delay.'; url='.$whereami.'">',
+                        'page_body' => translate('You have to be logged in to send messages!')
+                    ], $emptydoc));
+                }
                 ob_start();
                 ?><form action="<?php echo $whereami; ?>?action=sendmsg" method="POST" enctype="multipart/form-data">
-            <input type="text" name="msg" value="" placeholder="<?php echo translate('Write your message and press [ENTER] to send it.'); ?>">
-            <input type="submit" value="" style="display:hidden;">
+            <input type="text" name="msg" value="" placeholder="<?php echo translate('Write your message and press [ENTER] to send it.'); ?>" autofocus>
+            <input type="submit" value="&#x2b00;" title="<?php echo translate('Send!'); ?>">
         </form><?php
                 die(untemplate([
                     'page_title' => translate('Message writing form'),
