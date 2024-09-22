@@ -60,7 +60,7 @@
         ini_set('display_errors', 'On');
     }
     
-    $release_version = '0.1.0';
+    $release_version = '0.1.1';
     $release_channel = 'alpha';
     
     $supported_langs = ['en','de','sv'];    // This array contains every language code that is supported by this script
@@ -1034,7 +1034,7 @@
                         'page_title' => translate('Spectate chat'),
                         'page_desc' => translate('Sorry, you aren\'t logged in!'),
                         'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.$autoredirect_delay.'; url='.$whereami.'?action=spectatechat">',
-                        'page_body' => translate('You have to be logged in to interact with the chat!').'<br><a href="'.$whereami.'#login">'.translate('Log in').'</a> <a href="'.$whereami.'?action=spectatechat" autofocus>'.translate('Spectate (wait '.$autoredirect_delay.'s)').'</a>'
+                        'page_body' => translate('You have to be logged in to interact with the chat!').'<br><a href="'.$whereami.'#login">'.translate('Log in').'</a> <a href="'.$whereami.'?action=spectatechat" autofocus>'.untemplate(['delay'=>$autoredirect_delay], translate('Spectate &lpar;wait {delay}s&rpar;')).'</a>'
                     ], $emptydoc));
                 }
                 //TODO: Implement this!
@@ -1063,7 +1063,7 @@
                         'page_title' => translate('Spectate chat'),
                         'page_desc' => translate('Sorry, you aren\'t logged in!'),
                         'additional_headers' => '<meta name="robots" content="noindex">',
-                        'page_body' => translate('You have to be logged in to interact with the chat!').'<<br><a href="'.$whereami.'#login" target="_parent">'.translate('Log in').'</a> <a href="'.$whereami.'?action=spectatechat" autofocus>'.untemplate(['delay'=>$autoredirect_delay], translate('Spectate (wait {delay}s)')).'</a>>'
+                        'page_body' => translate('You have to be logged in to interact with the chat!').'<br><a href="'.$whereami.'#login" target="_parent">'.translate('Log in').'</a> <a href="'.$whereami.'?action=spectatechat" autofocus>'.untemplate(['delay'=>$autoredirect_delay], translate('Spectate &lpar;wait {delay}s&rpar;')).'</a>'
                     ], $emptydoc));
                 }
                 /* Currently disabled, see section "config variables"
