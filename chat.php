@@ -26,7 +26,7 @@
     $allow_user_set_lang = true;    // (default: true) If this is set to true the user can specify through a cookie "lang" what language they want the page to be displayed in. If that cookie is not set or this option is disabled the language set in $lang will be used.
     $password_minimum_length = 8;   // (default: 8) A whole number that decides the minimum length that is accepted for any user's password. It is recommended to let this be on the default value.
     $chat_min_refresh_delay = 5;    // (default: 5) The minimum amount of time to wait between chat refreshes. If this is 1 or lower all refresh requests are honoured and just wait for the set amount of time if the delay isn't over yet and no other waiting refresh request is running in parallel. Negative numbers are treated as 0.
-    /* Currently disabled, will maybe enable when base functionality is there. 
+    /* Currently disabled quality-of-life functionality, will maybe enable when base functionality is there. 
     $chat_disable_refreshless_update = false;   // (default: false) If this is set to true the script will not attempt to keep the connection open and automatically append more messages to the already-sent chat log in regular intervals. This will have the benefit of not needing to reload the chat log iframe over and over again, as well as keeping more than the server-side message limit visible, at the cost of automatic scrolling not properly working and there being a connection for each client, that is kept open until the user leaves.
     $chat_refreshless_update_rate = 3;  // (default: 3) This is the interval in which the server will check for new chat messages to append to the client's chat log. 
     */
@@ -60,8 +60,8 @@
         ini_set('display_errors', 'On');
     }
     
-    $release_version = '0.0.0';
-    $release_channel = 'pre-alpha';
+    $release_version = '0.1.0';
+    $release_channel = 'alpha';
     
     $supported_langs = ['en','de','sv'];    // This array contains every language code that is supported by this script
     if ($allow_user_set_lang && isset($_COOKIE['lang'])) {  // If the 
@@ -265,8 +265,23 @@
                 opacity: 100%;
             }
             
+            div.servermsg, div.chatmsg.msg_by_<?php echo $chatmaster; ?> {
+                background-color: red;
+                color: white;
+                border: 1px dashed yellow;
+            }
+            
+            small.msg_timestamp {
+                color: grey;
+                float: right;
+            }
+            
             span.username {
                 font-weight: bold;
+                width: fit-content;
+                padding: .1em;
+                border-radius: .3em;
+                float: left;
             }
             
             a.answerto {
@@ -285,6 +300,12 @@
                 color: blue;
                 background-color: orange;
             }
+            
+            #scrolltobottom {
+                scroll-margin-top: 0px;
+                scroll-margin-bottom: 100vh;
+            }
+            
             /* ---------- END chat style ---------- */
             
             /* ---------- BEGIN chat view style ---------- */
@@ -314,7 +335,7 @@
                 position: fixed;
                 bottom: 1em;
                 right: 1em;
-                padding: .3em;
+                margin: .3em;
             }
             
             input[type=submit]#pausebtn {
@@ -736,7 +757,7 @@
         ?><div class="msgbtns">
                 <form action="<?php echo $whereami; ?>?action=answertomsg&paused=true" method="POST" enctype="multipart/form-data" target="_parent">
                     <input type="hidden" name="username" value="<?php echo $username; ?>">
-                    <input type="hidden" name="timestamp" value="<?php echo $timestamp; ?>">
+                    <input type="hidden" name="timestamp" value="<?php echo $msgid; ?>">
                     <input type="submit" title="<?php echo str_replace('{username}', $username, translate('Answer @{username}')); ?>" value="&#x2BA3;">
                 </form>
             </div><?php
@@ -756,7 +777,7 @@
             ob_start();
         ?>
             <!-- TODO: Maybe pause the chat when the user clicks on a message highlight link? -->
-            <a class="answerto" id="answerto_<?php echo $answerto_username; ?>_<?php echo $answerto_msgid; ?>" href="#msg_<?php echo $answerto_msgid; ?>"> @<?php echo $answerto_username; ?></a>
+            <a class="answerto" id="answerto_<?php echo $answerto_username; ?>_<?php echo $answerto_msgid; ?>" href="<?php echo $whereami; ?>?action=getchat&paused=true#msg_<?php echo $answerto_msgid; ?>"> @<?php echo $answerto_username; ?></a>
             <style>
                 body:has(a.answerto#answerto_<?php echo $answerto_username; ?>_<?php echo $answerto_msgid; ?>:hover) div.chatmsg.msg_by_<?php echo $answerto_username; ?>#msg_<?php echo $answerto_msgid; ?> {
                     background-color: orange;
@@ -766,7 +787,7 @@
         <?php
             $retval = $retval.ob_get_clean();
         }
-        return $retval.'<span class="username">@'.$username.'</span><span class="msg_body">'.htmlentities($message).'</span>'.$buttons.'</div>';
+        return $retval.'<small class="msg_timestamp">'.date('Y-m-d H:i:s', ((int)$timestamp)).'</small><span class="username">@'.$username.'</span><span class="msg_body">'.htmlentities($message).'</span>'.$buttons.'</div>';
     }
     
     function find_user($name) {
@@ -1018,7 +1039,11 @@
                 }
                 //TODO: Implement this!
                 ob_start();
-                $answeringto = '';  //TODO: Fill this with the timestamp and username of the message to respond to!
+                $answeringto = ((
+                    $_GET['action']==='answertomsg' &&
+                    isset($_POST['username']) &&
+                    isset($_POST['timestamp'])
+                ) ? $_POST['username'].':'.$_POST['timestamp'] : '');
                 $iframe_errmsg = translate('If you see this error message it means that your browser does not support the &lt;iframe&gt; element. Iframes are <b>absolutely necessary</b> for this chat application to work, op please switch to a browser that follows the HTML5 standard!');
                 ?><iframe class="chatview" src="<?php echo $whereami; ?>?action=getchat<?php if ($_GET['action']==='answertomsg') { echo '&paused=true&answeringto='.$answeringto; } ?>#scrolltobottom"><?php echo $iframe_errmsg; ?></iframe>
         <iframe class="writeform" src="<?php echo $whereami; ?>?action=getwriteform<?php if ($_GET['action']==='answertomsg') { echo '&answeringto='.$answeringto; } ?>"><?php echo $iframe_errmsg; ?></iframe><?php
@@ -1092,13 +1117,23 @@
                             echo formatChatMsg($msgid, $msg, $_SESSION['last_time_chat_refreshed'], true);
                         }
                     }
+                    if (isset($_GET['answeringto']) && str_contains($_GET['answeringto'], ':')) {
+                        [$answerto_username, $answerto_msgid] = explode(':', $_GET['answeringto'], 2);
+                        echo "<style>div.chatmsg#msg_$answerto_msgid { background-color: orange; color: black; }</style>";
+                    }
                 } else {
                     echo translate('Pssssht, it\'s very quiet in here!');
                 }
                 $_SESSION['last_time_chat_refreshed'] = time();
                 ?><div class="btnbar">
-            <form action="<?php echo $whereami; ?>" method="GET">
-                <input type="hidden" name="action" value="getchat">
+            <form action="<?php echo $whereami; if ($_GET['action']!=='answertomsg') { echo '#scrolltobottom'; } ?>" method="GET"<?php if ($_GET['action']==='answertomsg') { echo ' target="_parent"'; } ?>>
+                <input type="hidden" name="action" value="<?php
+                    if ($_GET['action']==='answertomsg') {
+                        echo 'viewchat';
+                    } else {
+                        echo 'getchat';
+                    }
+                ?>">
                 <?php
                     if (!isset($_GET['paused'])) {
                         echo '<input type="hidden" name="paused" value="true">';
@@ -1116,13 +1151,19 @@
                 ?>">
             </form>
         </div>
-        <div id="scrolltobottom" style="visibility:hidden;opacity:0%;pointer-events:none;"><?php echo translate('This is just here to make you scroll to the bottom automatically, it should be invisible.'); ?></div><?php
+        <style>
+            div.chatmsg.msg_by_<?php echo htmlentities($_SESSION['username']); ?> span.username {
+                background-color: green;
+                color: white;
+            }
+        </style>
+        <div id="scrolltobottom"><!-- FIXME: Targetting this with a URL hash only seems to work on initial load and button press-caused reload, not on time-based reload… --></div><?php
                 die(untemplate([
                     'page_title' => translate('"{room_name}" • Chat view'),   // {room_name} is replaced below because the insertions are done sequentially by untemplate
                     'page_desc' => translate('Viewing &quot;{room_name}&quot; in JSFC as {user_name}'),
                     'additional_headers' => ((isset($_GET['paused']))
                         ?'<meta name="robots" content="noindex">'
-                        :'<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.((isset($_SESSION['chat_refresh_delay']))?max($_SESSION['chat_refresh_delay'],$chat_min_refresh_delay):$chat_min_refresh_delay).'">'),
+                        :'<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.((isset($_SESSION['chat_refresh_delay']))?max($_SESSION['chat_refresh_delay'],$chat_min_refresh_delay):$chat_min_refresh_delay).'; url=#scrolltobottom">'),
                     'page_body' => ob_get_clean(),
                     'room_name' => $_SESSION['chatroom'],
                     'user_name' => $_SESSION['username']
@@ -1132,10 +1173,12 @@
             //TODO: Maybe merge getchat and spectatechat?
             case 'spectatechat': {
                 //TODO: Implement this!
+                if ($chat_disable_spectate) {
+                    goto invalidaction;
+                }
                 break;
             }
             case 'sendmsg': {
-                //TODO: Implement this!
                 if (!isset($_SESSION['username'])) {
                     die(untemplate([
                         'page_title' => translate('Please log in first!'),
@@ -1149,20 +1192,31 @@
                     @mkpath(dirname($loglocation)); // Ensure that the folder for the chat logs exists
                 }
                 if (isset($_POST['msg']) && $_POST['msg']!=='') {
+                    if (isset($_POST['answeringto']) && str_contains($_POST['answeringto'], ':')) {
+                        [$answerto_username, $answerto_msgid] = explode(':', $_POST['answeringto'], 2);
+                        $answeringto = htmlentities($answerto_username).':'.((int)$answerto_msgid);
+                    } else {
+                        $answeringto = '';
+                    }
                     file_put_contents($loglocation, untemplate([
                         'timestamp' => time(),
                         'username' => $_SESSION['username'],
-                        'answerto' => $answerto,
+                        'answerto' => $answeringto,
                         'msg' => msgfilter($_POST['msg'])
                     ], "{timestamp}<{username}@{answerto}>{msg}\n") , FILE_APPEND | LOCK_EX);
+                }
+                if (isset($_GET['answeringto']) && str_contains($_GET['answeringto'], ':')) {   //TODO: Find out why this seems to act inverted!
+                    $nextaction = 'getchat';
+                } else {
+                    $nextaction = 'viewchat';
                 }
                 die(untemplate([
                     'page_title' => translate('Message writing form'),
                     'page_desc' => base64_encode('Never gonna give you up!'),
-                    'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.$chat_min_msg_delay.'; url='.$whereami.'?action=getwriteform">',
+                    'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.$chat_min_msg_delay.'; url='.$whereami.'?action='.$nextaction.'">',
                     'page_body' => untemplate([
                         'n' => $chat_min_msg_delay
-                    ], translate('Your message has been sent! It should appear soon in the chat window above. To reduce server load you cannot send new messages within {n} seconds of writing your last one.'))
+                    ], translate('Your message has been sent! It should appear soon in the chat window. To reduce server load you cannot send messages within less than {n} seconds of eachother.'))
                 ], $emptydoc));
                 break;
             }
@@ -1176,11 +1230,29 @@
                     ], $emptydoc));
                 }
                 ob_start();
-                ?><form action="<?php echo $whereami; ?>?action=sendmsg" method="POST" enctype="multipart/form-data">
+                ?><form action="<?php echo $whereami; ?>?action=sendmsg" method="POST" enctype="multipart/form-data"<?php
+                    if (isset($_GET['answeringto']) && str_contains($_GET['answeringto'], ':')) {
+                        echo 'target="_parent"';
+                    }
+                ?>>
+            <span class="msginfo"><?php
+                if (isset($_GET['answeringto']) && str_contains($_GET['answeringto'], ':')) {
+                    [$answerto_username, $answerto_msgid] = explode(':', $_GET['answeringto'], 2);
+                    echo untemplate([
+                        'username' => htmlentities($answerto_username),
+                        'chatroom' => $_SESSION['chatroom']
+                    ], translate('Answer to @{username} in "{chatroom}": '));
+                } else {
+                    echo untemplate([
+                        'chatroom' => $_SESSION['chatroom']
+                    ], translate('Talk in "{chatroom}": '));
+                }
+            ?></span>
             <input type="text" name="msg" value="" placeholder="<?php echo translate('Write your message and press [ENTER] to send it.'); ?>" autofocus>
-            <?php if (isset($_GET['answeringto'])) {
-                echo '<input type="hidden" name="answeringto" value="'.htmlentities($_GET['answeringto']).'">';
-            } ?><input type="submit" value="&#x2b00;" title="<?php echo translate('Send!'); ?>">
+            <?php
+                if (isset($_GET['answeringto']) && str_contains($_GET['answeringto'], ':')) {
+                    ?><input type="hidden" name="answeringto" value="<?php echo htmlentities($_GET['answeringto']); ?>">;
+            <?php } ?><input type="submit" value="&#x2b00;" title="<?php echo translate('Send!'); ?>">
         </form><?php
                 die(untemplate([
                     'page_title' => translate('Message writing form'),
