@@ -1,4 +1,6 @@
-# jsfc
+# JSFC
+*---The JavaScript-Free Chat---*   
+
 An online chat application that works without a single bit (pun intended) of JavaScript.   
 > [!WARNING]
 > JSFC is written as a toy project and _not at all_ with big volumes of messages or high security in mind!
