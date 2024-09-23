@@ -60,7 +60,7 @@
         ini_set('display_errors', 'On');
     }
     
-    $release_version = '0.1.1';
+    $release_version = '0.1.2';
     $release_channel = 'alpha';
     
     $supported_langs = ['en','de','sv'];    // This array contains every language code that is supported by this script
@@ -89,6 +89,7 @@
         <link rel="icon" href="<?php echo $favicon; ?>">
         <title>{page_title} • <?php echo $site_name; ?></title>
         <meta name="description" content="{page_desc}">
+        <meta name="jsfc-ver" content="<?php echo $release_version; ?>-<?php echo $release_channel; ?>">
         <style>
             /* ---------- BEGIN general style ---------- */
             :root {
@@ -844,6 +845,7 @@
                 function signup_error($reason) {
                     global $whereami;
                     global $emptydoc;
+                    global $autoredirect_delay;
                     die(untemplate([
                         'page_title' => translate('Signup error'),
                         'page_desc' => translate('There was an error creating an account for you.'),
@@ -895,7 +897,7 @@
                         }
                         ob_start();
                     ?><form method="POST" action="<?php echo $whereami; ?>?action=confirmsignup" enctype="multipart/form-data">
-            <label><?php echo translate('One Time Code: '); ?><input type="number" name="otc" min="100000" max="999999" placeholder="<?php echo translate('OTC'); ?>" value="<?php if ($signin_require_valid_email) { echo ''; } else { echo $_SESSION['signin_otc']; } ?>" autofocus required></label>
+            <label><?php echo translate('One Time Code: '); ?><input type="number" name="otc" size="6" min="100000" max="999999" placeholder="<?php echo translate('OTC'); ?>" value="<?php if ($signin_require_valid_email) { echo ''; } else { echo $_SESSION['signin_otc']; } ?>" autofocus required></label>
             <input type="submit" value="<?php echo translate('Sign up'); ?>"><?php
                         die(untemplate([
                             'page_title' => translate('Email verification required'),
@@ -914,6 +916,7 @@
                 if (isset($_SESSION['signin_otc']) && isset($_SESSION['signin_details'])) { // If there is a pending signin request
                     if (isset($_POST['otc']) && $_POST['otc']==$_SESSION['signin_otc']) { // If the OTC is correct
                         mkpath($secret_data_location.'/user/by-name/');
+                        mkpath($secret_data_location.'/user/by-email/');
                         $signin_details = json_decode($_SESSION['signin_details'], true);
                         file_put_contents(
                             $secret_data_location.'/user/by-name/'.$signin_details['username'].'.json',
@@ -1205,10 +1208,10 @@
                         'msg' => msgfilter($_POST['msg'])
                     ], "{timestamp}<{username}@{answerto}>{msg}\n") , FILE_APPEND | LOCK_EX);
                 }
-                if (isset($_GET['answeringto']) && str_contains($_GET['answeringto'], ':')) {   //TODO: Find out why this seems to act inverted!
-                    $nextaction = 'getchat';
-                } else {
+                if (isset($_POST['answeringto']) && str_contains($_POST['answeringto'], ':')) {
                     $nextaction = 'viewchat';
+                } else {
+                    $nextaction = 'getwriteform';
                 }
                 die(untemplate([
                     'page_title' => translate('Message writing form'),
@@ -1248,7 +1251,7 @@
                     ], translate('Talk in "{chatroom}": '));
                 }
             ?></span>
-            <input type="text" name="msg" value="" placeholder="<?php echo translate('Write your message and press [ENTER] to send it.'); ?>" autofocus>
+            <input type="text" name="msg" required value="" placeholder="<?php echo translate('Write your message and press [ENTER] to send it.'); ?>" autofocus>
             <?php
                 if (isset($_GET['answeringto']) && str_contains($_GET['answeringto'], ':')) {
                     ?><input type="hidden" name="answeringto" value="<?php echo htmlentities($_GET['answeringto']); ?>">;
