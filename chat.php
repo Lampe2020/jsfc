@@ -40,7 +40,7 @@
     $favicon = '/favicon.ico';  // (default: '/favicon.ico') The URL of the favicon to be used on all pages of this script. This can in most cases be left at the default value. 
     $site_name = 'JSFC'; // The name of your site. It is displayed in each page's title.
     $site_admin = 'webmaster'; // (default: 'webmaster') Enter your email address here if you want users to be able to contact you in the case of an error or question. If you set this to a value containing no @ character, the server assumes it means a username on the server this script is ran on and automatically completes this with the value from $_SERVER['SERVER_NAME']. Note that @localhost addresses will not work for this, as that would make users' email service send email to themselves instead of you.
-    $chatmaster = 'chatmaster';    // (default: 'chatmaster') This is the username that has full administrative privileges over the entire chat application. This one user is fully immune to any rate limits set by this script. Note that the registration form will block this username as existing even if it doesn't already exist, so its user definition file has to manually be created and populated with username, password hash and email address. This is to make it as hard as possible to illegitmiately gain access to this high-privileged account. 
+    $chatmaster = 'chatmaster';    // (default: 'chatmaster') This is the username that has full administrative privileges over the entire chat application. This one user is fully immune to any rate limits set by this script. Note that the registration form will block this username as existing even if it doesn't already exist, so its user definition file has to manually be created and populated with username, password hash and email address. This is to make it as hard as possible to illegitimately gain access to this high-privileged account. 
     $secret_data_location = '/tmp/.chat-secrets';   // (default: '/tmp/.chat-secrets') This is the server-side path to a directory for this script to store logins and the chat logs in. This should not be in a publicly-accessible directory, as otherwise the stored accounts could easily be compromised and possibly also external accounts that use the same or similar login details. By default this is in /tmp, but if you want accounts in this script to be permanent you should change this to a persistent storage location. Note that /tmp and /var/tmp on Linux may actually land inside /tmp/systemd-private-*-apache2.service-*/ (if the apache2.service file has the PrivateTmp option enabled).
     $password_hash_algorithm = PASSWORD_DEFAULT;    // (default: PASSWORD_DEFAULT) The password algorithm to use for storing and validating the users' passwords. This should be left at the default, but if you don't want this to change when you switch PHP versions you should specify which one to use.
     
@@ -60,10 +60,10 @@
         ini_set('display_errors', 'On');
     }
     
-    $release_version = '0.1.2';
+    $release_version = '0.2.0';
     $release_channel = 'alpha';
     
-    $supported_langs = ['en','de','sv'];    // This array contains every language code that is supported by this script
+    $supported_langs = ['en','de','sv'];    // This array contains every language code that is supported by this script; needs to manually be updated if a new version is added
     if ($allow_user_set_lang && isset($_COOKIE['lang'])) {  // If the 
         $lang = $_COOKIE['lang'];
     }
@@ -401,184 +401,549 @@
     }
     
     $untranslated = [];
-    $translations = [
-        /* Translation notice:
-         * All translation strings are defined in the section "translation strings" below, in the form of arrays.   
-         * The whole section is inside an array, whose elements have the English string as their key and an array with translations of that single string as their value.   
-         * Each translation subarray has keys for each language that that specific string is translated to (a two-letter HTML language code, as accepted in the HTML lang="" attribute) with the corresponding value being the translated string.   
-         * Some strings contain words in squirly braces {}. These are variables that _MUST NOT_ be translated. They are placeholders for values to be inserted after translation by simple string replacement; changing these in any way can disrupt functionality that involves the changed strings.   
-         */
-        // ---------- BEGIN translation strings ----------
-        'JS-free chat' => [
-            'de' => 'JS-freier Chat',
-            'sv' => 'JS-fri chatt'
-        ],
-        'An online chat room that works purely in HTML5 and CSS3' => [
-            'de' => 'Ein Onlinechatraum der in purem HTML5 und CSS3 funktioniert',
-            'sv' => 'Ett onlinechattrum som funkar helt i HTML5 och CSS3'
-        ],
-        'Login' => [
-            'de' => 'Anmeldung',
-            'sv' => 'Inloggning'
-        ],
-        'Log in' => [
-            'de' => 'Anmelden',
-            'sv' => 'Logga in'
-        ],
-        'Signup' => [
-            'de' => 'Registrierung',
-            'sv' => 'Registrering'
-        ],
-        'Sign up' => [
-            'de' => 'Registrieren',
-            'sv' => 'Registrera'
-        ],
-        'Username: ' => [
-            'de' => 'Benutzername: ',
-            'sv' => 'Användarnamn: '
-        ],
-        'Password: ' => [
-            'de' => 'Passwort: ',
-            'sv' => 'Lösenord: '
-        ],
-        'Your username' => [
-            'de' => 'Dein Benutzername',
-            'sv' => 'Ditt användarnamn'
-        ],
-        'Your password' => [
-            'de' => 'Dein Passwort',
-            'sv' => 'Ditt lösenord'
-        ],
-        'Repeat your password: ' => [
-            'de' => 'Wiederhole Dein Passwort: ',
-            'sv' => 'Upprepa ditt lösenord: '
-        ],
-        'I lost my password' => [
-            'de' => 'Passwort verloren',
-            'sv' => 'Tappade lösenordet'
-        ],
-        'Email: ' => [
-            'de' => 'E-Mail: ',
-            'sv' => 'Epost-adress: '
-        ],
-        'Email' => [
-            'de' => 'E-Mail',
-            'sv' => 'Epost-adress'
-        ],
-        'Account recovery' => [
-            'de' => 'Kontowiederherstellung',
-            'sv' => 'Lösenordsåterställning'
-        ],
-        'Send recovery email' => [
-            'de' => 'Wiederherstellungsemail schicken',
-            'sv' => 'Skicka återställningsmeddelande'
-        ],
-        'Cancel' => [
-            'de' => 'Abbrechen',
-            'sv' => 'Avbryt'
-        ],
-        'Server-side misconfiguration' => [
+    /* Translation notice:
+        * All translation strings are defined in the section "translation strings" below, in the form of arrays.   
+        * The whole section is inside an array, whose elements have the English string as their key and an array with translations of that single string as their value.   
+        * Each translation subarray has keys for each language that that specific string is translated to (a two-letter HTML language code, as accepted in the HTML lang="" attribute) with the corresponding value being the translated string.   
+        * Some strings contain words in squirly braces {}. These are variables that _MUST NOT_ be translated. They are placeholders for values to be inserted after translation by simple string replacement; changing these in any way can disrupt functionality that involves the changed strings.   
+        * Translation strings _MUST NOT_ include braces `(` and `)`, as those confuse the string extraction script; they should be replaced with the appropriate escape sequences, for example &lpar; and &rpar; in HTML and HTML-embedded CSS.   
+        */
+    // ---------- BEGIN translation strings ----------
+    $translations = array (
+        'Server-side misconfiguration' => 
+        array (
+            'sv' => 'Serversidigt konfigurationsfel',
             'de' => 'Serverseitige Fehlkonfiguration',
-            'sv' => 'Felkonfiguration på servern'
-        ],
-        'This chat page is non-functional because of an internal error.' => [
+        ),
+        'This chat page is non-functional because of an internal error.' => 
+        array (
+            'sv' => 'Denna chattsida fungerar inte på grund av ett internt fel.',
             'de' => 'Diese Chatseite funktioniert wegen eines Serverinternen Fehlers nicht.',
-            'sv' => 'Denna chattsida funkar inte på grund av ett serverinternt fel.'
-        ],
-        'The chat application has crashed!' => [
-            'de' => 'Die CHatanwendung ist abgestürzt!',
-            'sv' => 'Chattapplikationen har kraschat!'
-        ],
-        'If you don\'t know what\'s going on, try again later.<br>Incase the issue persists contact the administrator at the following email address: {admin_email}.' => [
+        ),
+        'The chat application has crashed!' => 
+        array (
+            'sv' => 'Chattapplikationen har kraschat!',
+            'de' => 'Die Chatanwendung ist abgestürzt!',
+        ),
+        'If you don\'t know what\'s going on, try again later.<br>Incase the issue persists contact the administrator at the following email address: {admin_email}.' => 
+        array (
+            'sv' => 'Om du inte vet vad som hände, försök snälla igen senare.<br>Ifall problemet kvarstår kontakta administratören vid följande epostadress: {admin_email}.',
             'de' => 'Wenn Du nicht weißt was los ist, versuch\'s später noch einmal.<br>Sollte das Problem weiterhin bestehen, kontaktiere den Serveradministrator unter folgender E-Mailadresse: {admin_email}.',
-            'sv' => 'Om du inte vet vad som hände, försök igen om en stund.<br>Ifall problemet kvarstår, kontaktera gärna serveradministratören via epost på följande adress: {admin_email}.'
-        ],
-        'If you are the server admin:' => [
+        ),
+        'If you are the server admin:' => 
+        array (
+            'sv' => 'Om du är administratören:',
             'de' => 'Wenn Du der Administrator bist:',
-            'sv' => 'Om du är administratören:'
-        ],
-        'Please ensure that the directory in <code title="code section &quot;config variables&quot;">$secret_data_location</code> is readable and writeable by the chat script.' => [
+        ),
+        'Please ensure that the directory in <code title="code section &quot;config variables&quot;">$secret_data_location</code> is readable and writeable by the chat script.' => 
+        array (
+            'sv' => 'Säkerställ snälla att platsen i <code title="Kodavsnitt &quot;config variables&quot;">$secret_data_location</code> är läs- och skrivbart av chatskriptet.',
             'de' => 'Stelle bitte sicher dass der Ordner in <code title="Codeabschnitt &quot;config variables&quot;">$secret_data_location</code> vom Chatskript gelesen und geschrieben werden kann.',
-            'sv' => 'Säkerställ snälla att platsen i <code title="Kodavsnitt &quot;config variables&quot;">$secret_data_location</code> är läs- och skrivbart av chatskriptet.'
-        ],
-        'Answer @{username}' => [
-            'de' => '@{username} antworten',
-            'sv' => 'Svara @{username}'
-        ],
-        'You can\'t do that!' => [
-            'de' => 'Du darfst das nicht tun!',
-            'sv' => 'Du får inte göra detta!'
-        ],
-        'The action you tried to perform is invalid or disabled!' => [
-            'de' => 'Die Aktion die Du ausführen wolltest ist ungültig oder deaktiviert!',
-            'sv' => 'Aktionen du ville göra är ogiltig eller inaktiverad!'
-        ],
-        'The action you tried to perform, <code>{action}</code>, was not recognized by the chat application or is disabled.' => [
-            'de' => 'Die Aktion die Du ausführen wolltest, <code>{action}</code> wurde von der Chatanwendung nicht erkannt oder ist deaktiviert.',
-            'sv' => 'Aktionen du ville göra, <code>{action}</code>, kändes inte igen av chattapplikationen eller är inaktiverad.'
-        ],
-        'Errm, this shouldn\'t happen…' => [
+        ),
+        'Errm, this shouldn\'t happen…' => 
+        array (
+            'sv' => 'Öhm, detta skulle inte hända…',
             'de' => 'Ähm, das sollte nicht passieren…',
-            'sv' => 'Öhm, detta skulle inte hända…'
-        ],
-        'It doesn\'t look like you should have access to this session!' => [
+        ),
+        'It doesn\'t look like you should have access to this session!' => 
+        array (
+            'sv' => 'Det ser inte ut som att du skulle ha åtkomst till denna session!',
             'de' => 'Es sieht nicht so aus, als solltest Du Zugang zu dieser Sitzung haben!',
-            'sv' => 'Det ser inte ut som att du skulle ha åtkomst till denna session!'
-        ],
-        'To the server it looks as if you have illegitmiately gained access to this session!' => [
+        ),
+        'To the server it looks as if you have illegitimately gained access to this session!' => 
+        array (
+            'sv' => 'Det ser ut för servern som att du har fått åtkomst till denna session på något otillåtet sätt!',
             'de' => 'Für den Server sieht es aus als ob Du auf unzulässigem Wege Zugang zu dieser Sitzung erhalten hast!',
-            'sv' => 'Det ser ut för servern som att du har fått åtkomst till denna session på något otillåtet sätt!'
-        ],
-        'WARNING!' => [
+        ),
+        'WARNING!' => 
+        array (
+            'sv' => 'VARNING!',
             'de' => 'WARNUNG!',
-            'sv' => 'VARNING!'
-        ],
-        'It looks like your session is no longer safe!' => [
-            'de' => 'Es sieht aus als ob Deine Sitzung nicht mehr sicher wäre!',
-            'sv' => 'Det ser ut som att din session inte längre är säker!'
-        ],
-        'WARNING: Session hijacked!' => [
-            'de' => 'WARNUNG! Sitzung gekapert!',
-            'sv' => 'VARNING! Session kapad!'
-        ],
-        'It looks like someone has hijacked your session!<br>It is strongly recommended that you log out and log back in to generate a new session.' => [
+        ),
+        'It looks like someone has hijacked your session!<br>It is strongly recommended that you log out and log back in to generate a new session.' => 
+        array (
+            'sv' => 'Det ser ut som att någon har kapat din session!<br>Det rekommenderas starkt att du loggar ut och in igen för att generera en ny session.',
             'de' => 'Es sieht so aus als habe jemand Deine Sitzung gekapert!<br>Es wird dringend empfohlen, dass Sie Sich ab- und wieder anmelden, um eine neue Sitzung zu generieren.',
-            'sv' => 'Det ser ut som att någon har kapat din session!<br>Det rekommenderas starkt att du loggar ut och in igen för att generera en ny session.'
-        ],
-        'Log out' => [
+        ),
+        'Log out' => 
+        array (
+            'sv' => 'Logga ut',
             'de' => 'Ausloggen',
-            'sv' => 'Logga out'
-        ],
-        'Ignore' => [
+        ),
+        'Ignore' => 
+        array (
+            'sv' => 'Ignorera',
             'de' => 'Ignorieren',
-            'sv' => 'Ignorera'
-        ],
-        'Successfully ignored session hijack!' => [
-            'de' => 'Sitzungskaperung erfolgreich ignoriert!',
-            'sv' => 'Sessionskapringen ignorerades framgångsrikt!'
-        ],
-        'The suspected session hijack was successfully erased from the session variables.' => [
-            'de' => 'Die mutmaßliche Sitzungskaperung wurde erfolgreich aus den Sitzungsvariabeln entfernt.',
-            'sv' => 'Den misstänkta sessionskapningen har framgångsrikt raderats från sessionsvariablerna.'
-        ],
-        'The session hijack has been cleared out of the server\'s memory.<br>Note that if another hijack should be detected, the warning will be issued again.<br>You will be redirected to the action you tried to perform when you received the warning; this will fail should that action have required hidden variables.' => [
-            'de' => 'Die mutmaßliche Sitzungskaperung wurde erfolgreich aus dem Arbeitsspeicher des Servers entfernt.<br>Hinweis: sollte ein erneuter Übernahmeversuch entdeckt werden, wird die Warnung wieder angeszeigt.<br>Du wirst zu der Aktion die Du ausführen wolltest als Du die Warnung bekommen hast. Dies wird fehschlagen, sollte diese Aktion versteckte Variabeln benötigen.',
-            'sv' => 'Den misstänkta sessionskapningen raderades framgångsrikt ur serverns arbetsminne.<br>Tips: om ett nytt kapningsförsök detekteras ser du varningen igen.<br>Du kommer att omdirigeras till aktionen du försökte göra när du fick varningen; detta kommer att misslyckas om denna aktion behövde dolda variabler.'
-        ],
-        'Signup error' => [
+        ),
+        'WARNING: Session hijacked!' => 
+        array (
+            'sv' => 'VARNING! Session kapad!',
+            'de' => 'WARNUNG! Sitzung gekapert!',
+        ),
+        'It looks like your session is no longer safe!' => 
+        array (
+            'sv' => 'Det ser ut som att din session inte längre är säker!',
+            'de' => 'Es sieht aus als ob Deine Sitzung nicht mehr sicher wäre!',
+        ),
+        'Could not acquire write lock for {filename}!' => 
+        array (
+            'sv' => 'Kunde inte få skrivlås för {filename}!',
+            'de' => 'Konnte Schreibschloss für {filename} nicht erhalten!',
+        ),
+        'Could not acquire read lock for {filename}!' => 
+        array (
+            'sv' => 'Kunde inte få läslås för {filename}!',
+            'de' => 'Konnte Leseschloss für {filename} nicht erhalten!',
+        ),
+        'Answer @{username}' => 
+        array (
+            'sv' => 'Svara @{username}',
+            'de' => '@{username} antworten',
+        ),
+        'Logout' => 
+        array (
+            'sv' => 'Utloggning',
+            'de' => 'Abmeldung',
+        ),
+        'Your logout request has been processed.' => 
+        array (
+            'sv' => 'Din utloggningsförfrågan har bearbetats.',
+            'de' => 'Deine Abmeldeanfrage wurde bearbeitet.',
+        ),
+        'You\'ve been logged out.' => 
+        array (
+            'sv' => 'Du har loggats ut.',
+            'de' => 'Du wurdest abgemeldet.',
+        ),
+        'Signup error' => 
+        array (
+            'sv' => 'Registreringsfel',
             'de' => 'Registrierugsfehler',
-            'sv' => 'Registreringsfel'
-        ],
-        'There was an error creating an account for you.' => [
+        ),
+        'There was an error creating an account for you.' => 
+        array (
+            'sv' => 'Ett fel uppstod när kontot skulle skapas för dig.',
             'de' => 'Beim Erstellen eines Benutzerkontos für Dich ist ein Fehler aufgetreten.',
-            'sv' => 'Ett fel uppstod när kontot skulle skapas för dig.'
-        ],
-        '<h2>Illegal username!</h2><br>Allowed usernames…<ul><li>…begin with a letter from a~z in upper- or lowercase, or an underscore.</li><li>…only contain letters from a~z in upper- or lowercase, numbers from 0~9, or underscores.</li><li>…are 3~15 characters long.</li></ul>' => [
+        ),
+        'The passwords don\'t match!' => 
+        array (
+            'sv' => 'Lösenorden stämmer inte överens!',
+            'de' => 'Die Passwörter stimmen nicht überein!',
+        ),
+        'Your password is too short with {len} characters, it must be at least {minlen} characters long!' => 
+        array (
+            'sv' => 'Ditt lösenord är för kort med {len} tecken, det måste vara minst {minlen} tecken lång!',
+            'de' => 'Dein passwort ist mit {len} Zeichen zu kurz, es muss mindestens {minlen} Zeichen lang sein!',
+        ),
+        '<h2>Illegal username!</h2><br>Allowed usernames…<ul><li>…begin with a letter from a~z in upper- or lowercase, or an underscore.</li><li>…only contain letters from a~z in upper- or lowercase, numbers from 0~9, or underscores.</li><li>…are 3~15 characters long.</li></ul>' => 
+        array (
+            'sv' => '<h2>Illegalt användarnamn!</h2><br>Tillåtna användarnamn…<ul><li>…börjar med en små- eller storbokstav från a~z eller ett understreck.</li><li>…innehåller bara små- eller storbokstäver från a~z, siffror från 0~9 eller understreck.</li><li>…är 3~15 tecken långa.</li></ul>',
             'de' => '<h2>Illegaler Benutzername!</h2><br>Erlaubte Benutzernamen…<ul><li>…fangen mit einem Groß- oder Kleinbuchstaben von a~z oder einem Unterstrich an.</li><li>…enthalten nur Groß- oder Kleinbuchstaben von a~z, Ziffern von 0~9 oder Unterstriche.</li><li>…sind 3~15 Zeichen lang.</li></ul>',
-            'sv' => '<h2>Illegalt användarnamn!</h2><br>Tillåtna användarnamn…<ul><li>…börjar med en små- eller storbokstav från a~z eller ett understreck.</li><li>…innehåller bara små- eller storbokstäver från a~z, siffror från 0~9 eller understreck.</li><li>…är 3~15 tecken långa.</li></ul>'
-        ]
-        // ---------- END translation strings ----------
-    ];
+        ),
+        'That\'s not an email address, silly!' => 
+        array (
+            'sv' => 'Det är ju inget e-postadress, dumbom!',
+            'de' => 'Das ist doch keine Emailadresse, Dummerchen!',
+        ),
+        'That account name is unfortunately already taken!' => 
+        array (
+            'sv' => 'Detta kontonamn är tyvärr redan taget!',
+            'de' => 'Dieser Kontoname ist leider schon belegt!',
+        ),
+        'Please use another email address or try to log into your existing account!' => 
+        array (
+            'sv' => 'Använd snälla ett annat e-postadress eller försök logga in till ditt befintliga konto!',
+            'de' => 'Benutze bitte eine andere Emailadresse oder versuche dich mit deinem befintlichen Konto anzumelden!',
+        ),
+        'Sorry, you can\'t register right now!' => 
+        array (
+            'sv' => 'Ursäkta, men vi kan inte registrera dig just nu!',
+            'de' => 'Entschuldige, Du kannst Dich jetzt gerade nicht registrieren!',
+        ),
+        '[AUTOMATED] Sign-up verification code' => 
+        array (
+            'sv' => '[AUTOMATISERAD] Registreringsverifieringskod',
+            'de' => '[AUTOMATISIERT] Registrerungsverifizierungscode',
+        ),
+        'Hello {name}!
+
+You requested to create an account for the chat on {site_name} with the following account details:
+User name:     {username}
+Email address: {email}
+Password:      {password}
+
+If this was you, please enter the following code on the signin confirmation page: {otc}
+If this wasn\'t you, just ignore this email and the signin attempt will not succeed.
+
+Greetings, the signin bot at {site_name}' => 
+        array (
+            'sv' => 'Hej {name}!
+
+Du förfrågade att skapa ett konto för chatten på {site_name} med följande kontodetaljer:
+Användarnamn: {username}
+E-postadress: {email}
+Lösenord:     {password}
+
+Om det var du, ange snälla följande verifieringskod i registreringsverifieringssidan: {otc}
+Om det inte var du, ignorera bara detta meddelande och registreringen ska inte vara framgångsrik.
+
+// Registreringsroboten på {site_name}',
+            'de' => 'Hallo {name}!
+
+Du hast ein konto für den Chat auf {site_name} angefordert mit den folgenden Kontodetails:
+Benutzername: {username}
+Emailadresse: {email}
+Passwort:     {password}
+
+Wenn Du das warst, gib bitte den folgenden Code auf der Registrierungsverifizierseite an: {otc}
+Wenn Du das nicht warst, ignoriere einfach diese Nachricht und der Registrierungsversuch wird scheitern.
+
+Mit freundlichen Grüßen, 
+Der Registrierungsbot auf {site_name}',
+        ),
+        'One Time Code: ' => 
+        array (
+            'sv' => 'Engångskod: ',
+            'de' => 'Einmalcode',
+        ),
+        'OTC' => 
+        array (
+            'sv' => 'Engångskod',
+            'de' => 'Einmalcode',
+        ),
+        'Sign up' => 
+        array (
+            'sv' => 'Registrera',
+            'de' => 'Registrieren',
+        ),
+        'Email verification required' => 
+        array (
+            'sv' => 'E-postverifiering krävs',
+            'de' => 'Emailverifizierung erforderlich!',
+        ),
+        'You need to verify your email address.' => 
+        array (
+            'sv' => 'Du behöver verifiera din e-postadress.',
+            'de' => 'Du musst Deine Emailadresse verifizieren.',
+        ),
+        'You need to verify your email address by entering the code that got sent to you below:' => 
+        array (
+            'sv' => 'Du behöver verifiera din e-postadress genom att skriva in koden du fick i meddelandet nedan:',
+            'de' => 'Du musst Deine Emailadresse verifizieren indem Du den Code der Dir zugeschickt wurde unten eingibst:',
+        ),
+        'You have to specify all fields of the signup form to sign up!' => 
+        array (
+            'sv' => 'Du måste ange alla fält i registreringsformuläret för att registrera!',
+            'de' => 'Du musst alle Felder des Registrierungsformulares ausfüllen um Dich zu registrieren!',
+        ),
+        'Signin success!' => 
+        array (
+            'sv' => 'Framgångsrik registrering!',
+            'de' => 'Registrierungserfolg!',
+        ),
+        'Your account has been successfully created!' => 
+        array (
+            'sv' => 'Ditt konto har framgångsrikt skapats!',
+            'de' => 'Dein Konto wurde erfolgreich erstellt!',
+        ),
+        'Your account was successfully created!<br>Please log in on the next page using your newly-created account.' => 
+        array (
+            'sv' => 'Ditt konto skapades framgångsrikt!<br>Logga snälla in på nästa sidan med ditt nyskapat konto.',
+            'de' => 'Dein Konto wurde erfolgreich erstellt!<br>Bitte melde Dich auf der nächsten Seite mit Deinem neuerstellten Konto an.',
+        ),
+        'You did not specify the correct OTC for signup, please try again.' => 
+        array (
+            'sv' => 'Du angav inte rätt engångskod för registrering, försök igen.',
+            'de' => 'Du hast nicht den korrekten Einmalcode für die Registrierung angegeben, versuch\'s noch einmal.',
+        ),
+        'There is no signup for you to validate!<br>Please ensure that you have cookies enabled and try to sign up again!' => 
+        array (
+            'sv' => 'Det finns ingen registrering som du skulle kunna verifiera!<br>Säkerställ snälla att du har kakorna aktiverade och försök att registrera igen!',
+            'de' => 'Es gibt keine Registrierung die Du verifizieren könntest!<br>Stelle bitte sicher dass Du Cookies aktiviert hast und versuch\'s noch einmal!',
+        ),
+        'Login success' => 
+        array (
+            'sv' => 'Framgångsrik inloggning',
+            'de' => 'Anmeldeerfolg',
+        ),
+        'You logged in successfully.' => 
+        array (
+            'sv' => 'Du loggades in framgångsrikt.',
+            'de' => 'Du hast Dich erfolgreich angemeldet.',
+        ),
+        'You logged in successfully and will soon be redirected to <a href="{whereami}?action=viewchat">the chat view</a>.' => 
+        array (
+            'sv' => 'Du loggades in framgångsrikt och vidareleds snart till <a href="{whereami}?action=viewchat">chattvyn</a>.',
+            'de' => 'Du hast Dich erfolgreich angemeldet und wirst bald zur <a href="{whereami}?action=viewchat">Chatansicht</a> weitergeleitet.',
+        ),
+        'Login error' => 
+        array (
+            'sv' => 'Inloggningsfel!',
+            'de' => 'Anmeldefehler',
+        ),
+        'Your login attempt failed.' => 
+        array (
+            'sv' => 'Ditt inloggningsförsök slog fel.',
+            'de' => 'Dein Anmeldeversuch schlug fehl.',
+        ),
+        'The credentials you provided are incorrect!' => 
+        array (
+            'sv' => 'Inloggningsuppgifterna du angav är felaktiga!
+        ',
+            'de' => 'Die Anmeldedetails die DU angegeben hast stimmen nicht!',
+        ),
+        'Please don\'t do that!' => 
+        array (
+            'sv' => 'Gör snälla inte detta!',
+            'de' => 'Bitte mach\' das nicht!',
+        ),
+        'You submitted an incorrect login request.' => 
+        array (
+            'sv' => 'Du skickade en ogiltig inloggningsförfrågan.',
+            'de' => 'Du hast eine ungültige Anmeldeanfrage gesendet.',
+        ),
+        'You submitted an incorrect login request with either the user name, password or both missing.' => 
+        array (
+            'sv' => 'Du skickade en ogiltig inloggningsförfrågan där antingen användarnamnet, lösenordet eller båda saknades.',
+            'de' => 'Du hast eine ungültige Anmeldeanfrage gesendet bei der entweder der Benutzername, das Passwort oder beides fehlen.',
+        ),
+        'Spectate chat' => 
+        array (
+            'sv' => 'Åskåda chatten',
+            'de' => 'Dem Chat zuschauen',
+        ),
+        'Sorry, you aren\'t logged in!' => 
+        array (
+            'sv' => 'Ursäkta, du är inte inloggad!',
+            'de' => 'Entschuldige, Du bist nicht angemeldet!',
+        ),
+        'You have to be logged in to interact with the chat!' => 
+        array (
+            'sv' => 'Du måste vara inloggad för att interagera med chatten!',
+            'de' => 'Du musst angemeldet sein um mit dem CHat zu interagieren!',
+        ),
+        'Log in' => 
+        array (
+            'sv' => 'Logga in',
+            'de' => 'Anmelden',
+        ),
+        'Spectate &lpar;wait {delay}s&rpar;' => 
+        array (
+            'sv' => 'Åskåda &lpar;vänta {delay}s&rpar;',
+            'de' => 'Zuschauen &lpar;{delay}s warten&rpar;',
+        ),
+        'If you see this error message it means that your browser does not support the &lt;iframe&gt; element. Iframes are <b>absolutely necessary</b> for this chat application to work, so please switch to a browser that follows the HTML5 standard!' => 
+        array (
+            'sv' => 'Om du ser detta felmeddelande betyder det att din webbläsare inte stöder &lt;iframe/gt;-elementet. Iframes är <b>absolut nödvändiga</b> för den här chattapplikationen att fungera, så byt snälla till en webbläsare som följer HTML5-standarden!',
+            'de' => 'Wenn Du diese Fehlernachricht siehst bedeutet das, dass Dein Browser das &lt;iframe&gt;-Element nicht unterstützt. Iframes sind <b>absolut notwendig</b> für die Funktion dieser Chatanwendung, also wechsele bitte zu einem Browser der dem HTML5-Standard folgt!',
+        ),
+        '"{room_name}" • Chat view' => 
+        array (
+            'sv' => '"{room_name}" • Chattvy',
+            'de' => '"{room_name}" • Chatansicht',
+        ),
+        'Viewing &quot;{room_name}&quot; in JSFC as {user_name}' => 
+        array (
+            'sv' => 'Tittar på &quot;{room_name}&quot; i JSFC som {user_name}',
+            'de' => 'Lese &quot;{room_name}&quot; in JSFC als {user_name}',
+        ),
+        'You\'re too fast!' => 
+        array (
+            'sv' => 'Du är för snabb!',
+            'de' => 'Du bist zu schnell!',
+        ),
+        'You are refreshing your chat view too often!' => 
+        array (
+            'sv' => 'Du förnyar din chattvy för ofta!',
+            'de' => 'Du lädtst Deine Chatansicht zu oft neu!',
+        ),
+        'You must not reload your chat view faster than {timeout} seconds after the last reload!<br>Please wait another {wait_time}s, the page should automatically update.' => 
+        array (
+            'sv' => 'Du får inte ladda om din chattvy snabbare än {timeout} sekunder efter sista omladdningen!<br>Vänta snälla {wait_time}s till, sidan skulle uppdateras automatiskt.',
+            'de' => 'Du darfst Deine Chatansicht nicht schneller als {timeout} Sekunden nach dem letzten Neuladen neu laden!<br>Warte bitte {wait_time}s, die Seite sollte automatisch neuladen.',
+        ),
+        'Chat not found!' => 
+        array (
+            'sv' => 'Chatten hittades inte!',
+            'de' => 'Chat nicht gefunden!',
+        ),
+        'The chat room you were trying to read does not exist.' => 
+        array (
+            'sv' => 'Chattrummet du försökte läsa finns inte.',
+            'de' => 'Der Chatraum den Du versuchtest zu lesen existiert nicht.',
+        ),
+        'The chat room you tried to access, "{chatroom}", could not be found on the server. Please ensure you haven\'t mistyped it.' => 
+        array (
+            'sv' => 'Chattrummet du försökte komma åt, "{chatroom}", kunde inte hittas på servern. Säkerställ snälla att du inte stavade den fel.',
+            'de' => 'Der Chatraum dem Du versuchtest beizutreten, "{chatroom}", konnte auf dem Server nicht gefunden werden. Stelle bitte sicher, dass Du Dich nicht vertippt hast.',
+        ),
+        'Pssssht, it\'s very quiet in here!' => 
+        array (
+            'sv' => 'Psssst, det är jättetyst härinne!',
+            'de' => 'Pschhhht, es ist sehr leise hier drinnen!',
+        ),
+        'Click to unpause' => 
+        array (
+            'sv' => 'Klicka för att fortsätta',
+            'de' => 'Klicken zum weiterlesen',
+        ),
+        'Click to pause' => 
+        array (
+            'sv' => 'Klicka för att pausa',
+            'de' => 'Klicken zum pausieren',
+        ),
+        'Please log in first!' => 
+        array (
+            'sv' => 'Snälla logga in först!',
+            'de' => 'Bitte melde Dich erst an!',
+        ),
+        'WgXcQ' => 
+        array (
+            'sv' => 'WgXcQ',
+            'de' => 'WgXcQ',
+        ),
+        'You have to be logged in to send messages!' => 
+        array (
+            'sv' => 'Du måste vara inloggad för att skicka meddelanden!',
+            'de' => 'Du musst angemeldet sein um Nachrichten zu schicken!',
+        ),
+        'Message writing form' => 
+        array (
+            'sv' => 'Meddelandeskrivformuläret',
+            'de' => 'Nachrichtenschreibeformular',
+        ),
+        'Your message has been sent! It should appear soon in the chat window. To reduce server load you cannot send messages within less than {n} seconds of eachother.' => 
+        array (
+            'sv' => 'Ditt meddelande har skickats! Det skulle snart dyka upp i chattvyn. För att minska serverbelastning kan du inte skicka meddelanden inom mindre än {n} sekunder från varandra.',
+            'de' => 'Deine Nachricht wurde abgeschickt! Sie sollte bald im Chatfenster auftauchen. Um die Serverlast zu verringern kannst Du keine Nachrichten im Abstand von weniger als {n} Sekunden schicken.',
+        ),
+        'Answer to @{username} in "{chatroom}": ' => 
+        array (
+            'sv' => 'Svara @{username} i "{chatroom]": ',
+            'de' => '@{username} in "{chatroom}" antworten: ',
+        ),
+        'Talk in "{chatroom}": ' => 
+        array (
+            'sv' => 'Prata i "{chatroom}": ',
+            'de' => 'In "{chatroom}" reden: ',
+        ),
+        'Write your message and press [ENTER] to send it.' => 
+        array (
+            'sv' => 'Skriv ditt meddelande och tryck [RETUR] för att skicka det.',
+            'de' => 'Schreibe Deine Nachricht und drücke [EINGABE] um sie zu senden.',
+        ),
+        'Send!' => 
+        array (
+            'sv' => 'Skicka!',
+            'de' => 'Senden!',
+        ),
+        'Successfully ignored session hijack!' => 
+        array (
+            'sv' => 'Sessionskapningen ignorerades framgångsrikt!',
+            'de' => 'Sitzungskaperung erfolgreich ignoriert!',
+        ),
+        'The suspected session hijack was successfully erased from the session variables.' => 
+        array (
+            'sv' => 'Den misstänkta sessionskapningen har framgångsrikt raderats från sessionsvariablerna.',
+            'de' => 'Die mutmaßliche Sitzungskaperung wurde erfolgreich aus den Sitzungsvariabeln entfernt.',
+        ),
+        'The session hijack has been cleared out of the server\'s memory.<br>Note that if another hijack should be detected, the warning will be issued again.<br>You will be redirected to the action you tried to perform when you received the warning; this will fail should that action have required hidden variables.' => 
+        array (
+            'sv' => 'Sessionskapningen raderades framgångsrikt ur serverns arbetsminne.<br>Tips: om ett nytt kapningsförsök detekteras ser du varningen igen.<br>Du kommer att omdirigeras till åtgärden du försökte göra när du fick varningen; detta kommer att misslyckas om denna åtgärd behövde dolda variabler.',
+            'de' => 'Die Sitzungskaperung wurde erfolgreich aus dem Arbeitsspeicher des Servers entfernt.<br>Hinweis: sollte ein erneuter Übernahmeversuch entdeckt werden, wird die Warnung wieder angeszeigt.<br>Du wirst zu der Aktion die Du ausführen wolltest als Du die Warnung bekommen hast. Dies wird fehschlagen, sollte diese Aktion versteckte Variabeln benötigen.',
+        ),
+        'You can\'t do that!' => 
+        array (
+            'sv' => 'Du kan inte göra detta!',
+            'de' => 'Du darfst das nicht tun!',
+        ),
+        'The action you tried to perform is invalid or disabled!' => 
+        array (
+            'sv' => 'Åtgärden du försökte göra är ogiltig eller inaktiverad!',
+            'de' => 'Die Aktion die Du ausführen wolltest ist ungültig oder deaktiviert!',
+        ),
+        'The action you tried to perform, <code>{action}</code>, was not recognized by the chat application or is disabled.' => 
+        array (
+            'sv' => 'Åtgärden du försökte göra, <code>{action}</code>, kändes inte igen av chattapplikationen eller är inaktiverad.',
+            'de' => 'Die Aktion die Du ausführen wolltest, <code>{action}</code> wurde von der Chatanwendung nicht erkannt oder ist deaktiviert.',
+        ),
+        'Login' => 
+        array (
+            'sv' => 'Inloggning',
+            'de' => 'Anmeldung',
+        ),
+        'Username: ' => 
+        array (
+            'sv' => 'Användarnamn: ',
+            'de' => 'Benutzername: ',
+        ),
+        'Your username' => 
+        array (
+            'sv' => 'Ditt användarnamn',
+            'de' => 'Dein Benutzername',
+        ),
+        'Password: ' => 
+        array (
+            'sv' => 'Lösenord: ',
+            'de' => 'Passwort: ',
+        ),
+        'Your password' => 
+        array (
+            'sv' => 'Ditt lösenord',
+            'de' => 'Dein Passwort',
+        ),
+        'I lost my password' => 
+        array (
+            'sv' => 'Tappade lösenordet',
+            'de' => 'Passwort verloren',
+        ),
+        'Signup' => 
+        array (
+            'sv' => 'Registrering',
+            'de' => 'Registrierung',
+        ),
+        'Repeat your password: ' => 
+        array (
+            'sv' => 'Upprepa ditt lösenord: ',
+            'de' => 'Wiederhole Dein Passwort: ',
+        ),
+        'Email: ' => 
+        array (
+            'sv' => 'E-post: ',
+            'de' => 'E-Mail: ',
+        ),
+        'Email' => 
+        array (
+            'sv' => 'E-post',
+            'de' => 'E-Mail',
+        ),
+        'Account recovery' => 
+        array (
+            'sv' => 'Kontoåterställning',
+            'de' => 'Kontowiederherstellung',
+        ),
+        'Send recovery email' => 
+        array (
+            'sv' => 'Skicka återställningsmeddelande',
+            'de' => 'Wiederherstellungsemail schicken',
+        ),
+        'Cancel' => 
+        array (
+            'sv' => 'Avbryt',
+            'de' => 'Abbrechen',
+        ),
+        'JS-free chat' => 
+        array (
+            'sv' => 'JS-fri chatt',
+            'de' => 'JS-freier Chat',
+        ),
+        'An online chat room that works purely in HTML5 and CSS3' => 
+        array (
+            'sv' => 'Ett onlinechattrum som funkar helt i HTML5 och CSS3',
+            'de' => 'Ein Onlinechatraum der in purem HTML5 und CSS3 funktioniert',
+        ),
+    );
+    // ---------- END translation strings ----------
     function translate($str) {
         global $lang;
         if ($lang==='en') {
@@ -602,7 +967,7 @@
     
     // Ensure the file system is set up correctly for this script to work
     mkpath($secret_data_location);  // Create the dir if it doesn't exist, ignore it if it already does.
-    if (!is_dir($secret_data_location)) {
+    if (!is_dir($secret_data_location)) {   // If the secret data location does not exist after the creation attempt, error out and display the issue to the user.
         http_response_code(500);
         die(untemplate([
             'page_title' => translate('Server-side misconfiguration'),
@@ -631,7 +996,7 @@
                 'page_title' => translate('Errm, this shouldn\'t happen…'),
                 'page_desc' => translate('It doesn\'t look like you should have access to this session!'),
                 'additional_headers' => '<meta name="robots" content="noindex">',
-                'page_body' => translate('To the server it looks as if you have illegitmiately gained access to this session!')
+                'page_body' => translate('To the server it looks as if you have illegitimately gained access to this session!')
             ], $emptydoc));
         } else if (isset($_SESSION['stolen']) and !(isset($_GET['action']) && in_array($_GET['action'], ['ignorehijack', 'logout']))) { // Tell the user that their session has been hijacked and they should log off and on again
             ob_start();
@@ -686,7 +1051,7 @@
         if (flock($fh, LOCK_EX)) {
             return $fh;
         } else {
-            throw new Error(untemplate(['filename'=>$fname], translate("Could not aquire write lock for {filename}!")));
+            throw new Error(untemplate(['filename'=>$fname], translate("Could not acquire write lock for {filename}!")));
         }
     }
     
@@ -695,7 +1060,7 @@
         if (flock($fh, LOCK_EX)) {
             return $fh;
         } else {
-            throw new Error(untemplate(['filename'=>$fname], translate("Could not aquire read lock for {filename}!")));
+            throw new Error(untemplate(['filename'=>$fname], translate("Could not acquire read lock for {filename}!")));
         }
     }
     
@@ -891,7 +1256,17 @@
                                     'email' => $_POST['email'],
                                     'password' => preg_replace('/./', '•', $_POST['password']), // Return as many big dots (U+2022) as there are characters in the chosen password
                                     'otc' => $_SESSION['signin_otc']
-                                ], translate("Hello {name}!\r\n\r\nYou requested to create an account for the chat on {site_name} with the following account details:\r\nUser name:     {username}\r\nEmail address: {email}\r\nPassword:      {password}\r\n\r\nIf this was you, please enter the following code on the signin confirmation page: {otc}\r\nIf this wasn't you, just ignore this email and the signin attempt will not succeed.\r\n\r\nGreetings, the signin bot at {site_name}")),
+                                ], translate("Hello {name}!
+
+You requested to create an account for the chat on {site_name} with the following account details:
+User name:     {username}
+Email address: {email}
+Password:      {password}
+
+If this was you, please enter the following code on the signin confirmation page: {otc}
+If this wasn't you, just ignore this email and the signin attempt will not succeed.
+
+Greetings, the signin bot at {site_name}")),
                                 ['From'=>$site_admin]  // Incase the user has a question they can contact the admin
                             );
                         }
@@ -1047,7 +1422,7 @@
                     isset($_POST['username']) &&
                     isset($_POST['timestamp'])
                 ) ? $_POST['username'].':'.$_POST['timestamp'] : '');
-                $iframe_errmsg = translate('If you see this error message it means that your browser does not support the &lt;iframe&gt; element. Iframes are <b>absolutely necessary</b> for this chat application to work, op please switch to a browser that follows the HTML5 standard!');
+                $iframe_errmsg = translate('If you see this error message it means that your browser does not support the &lt;iframe&gt; element. Iframes are <b>absolutely necessary</b> for this chat application to work, so please switch to a browser that follows the HTML5 standard!');
                 ?><iframe class="chatview" src="<?php echo $whereami; ?>?action=getchat<?php if ($_GET['action']==='answertomsg') { echo '&paused=true&answeringto='.$answeringto; } ?>#scrolltobottom"><?php echo $iframe_errmsg; ?></iframe>
         <iframe class="writeform" src="<?php echo $whereami; ?>?action=getwriteform<?php if ($_GET['action']==='answertomsg') { echo '&answeringto='.$answeringto; } ?>"><?php echo $iframe_errmsg; ?></iframe><?php
                 die(untemplate([
