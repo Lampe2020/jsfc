@@ -11,8 +11,20 @@
     $lang = ((isset($_GET['lang'])) ? $_GET['lang'] : 'en');
     $existing_transl = @eval(file_get_contents('chat_strings.php'));
     if (!$existing_transl) {
-        system('python3 ./gettransl.py');   // If the translation file does not exist yet, generate it.
-        $existing_transl = eval(file_get_contents('chat_strings.php'));
+        // Extract the strings from chat.php
+        $strings = NULL;
+        preg_match_all(
+            '/translate\(([^\)]*)\)/',
+            file_get_contents('chat.php'),
+            $strings
+        );
+        $existing_transl = [];
+        foreach ($strings[1] as $str) { // Get all matches for the first unnamed group
+            if (!in_array($str[0], ['"', "'"])) {
+                continue;   // Allow only string literals to pass through
+            }
+            $existing_transl[eval("return $str;")] = [];    // Also allow strings that are in pieces in the code because single-quotes were used and several lines stitched together with a double-quoted "\n"
+        }
     }
     
     if (isset($_GET['lang']) && isset($_GET['action']) && $_GET['action']==='submit') {
@@ -64,16 +76,9 @@
                 content: "⚠";    /* U+25A0 */
             }
             
-            textarea {
-                box-sizing: border-box;
-                padding: 1em;
-                width: 100vw;
-                max-width: calc(100vw - 1em);
-                scrollbar-width: thin;
+            hr {
+                margin-top: 1em;
             }
-            /*textarea:not(:placeholder-shown) {
-                box-shadow: 3px 3px 3px green;
-            }*/
             
             pre {
                 border: 1px solid grey;
@@ -86,6 +91,18 @@
                 overflow-x: scroll;
                 scrollbar-width: thin;
             }
+            
+            textarea {
+                box-sizing: border-box;
+                padding: 1em;
+                width: 100vw;
+                max-width: calc(100vw - 1em);
+                scrollbar-width: thin;
+                resize: none;
+            }
+            /*textarea:not(:placeholder-shown) {
+                box-shadow: 3px 3px 3px green;
+            }*/
         </style>
     </head>
     <body>
@@ -109,12 +126,13 @@
                 ?><hr><span id="note">Please select a target language above to start translating.</span><?php
             } else {
                 ?><form action="<?php echo $_SERVER['PHP_SELF']; ?>?lang=<?php echo $lang; ?>&action=submit" method="POST" enctype="multipart/form-data" onsubmit="if (!confirm('Do you really want to submit your translation? It will immediately overwrite any string that it doesn\'t leave empty!')) { event.preventDefault(); }" onkeydown="if (event.key==='Enter' && event.ctrlKey) { this.querySelector('input[type=submit]')?.click?.(); }">
-                    <hr style="margin-top:1em;"><span id="note">Be aware that some strings have trailing spaces, do not omit those in your translation!<br>As soon as you submit your translation it will instantly overwrite any strings in the stored translation that you did not leave empty!</span>
+                    <hr style="margin-top:1em;"><span id="note">Be aware that some strings have trailing spaces, do not omit those in your translation!<br>As soon as you submit your translation it will instantly overwrite any strings in the stored translation that you did not leave empty!<br>To install the translation, just copy the array in chat_strings.php and replace the array $translate in chat.php with the new one.</span>
                     <?php
                         foreach ($existing_transl as $orig => $arr_transl) {
-                            echo '<hr style="margin-top:1em;"><label style="max-width:100vw;"><pre>'.htmlentities($orig).'</pre><textarea name="'.md5($orig).'" rows="'.(substr_count($orig, "\n")+1).'" placeholder="Write your translation for the above string here.">'.((isset($arr_transl[$lang])) ? htmlentities($arr_transl[$lang]) : '').'</textarea></label>';
+                            echo '<hr><label style="max-width:100vw;"><pre>'.htmlentities($orig).'</pre><textarea name="'.md5($orig).'" rows="'.(substr_count($orig, "\n")+1).'" placeholder="Write your translation for the above string here.">'.((isset($arr_transl[$lang])) ? htmlentities($arr_transl[$lang]) : '').'</textarea></label>';
                         }
                     ?>
+                    <hr>
                     <input type="submit" value="Submit translation" style="padding:1em;margin:1em;">
                 </form><?php
             }
