@@ -129,7 +129,7 @@
                     <hr style="margin-top:1em;"><span id="note">Be aware that some strings have trailing spaces, do not omit those in your translation!<br>As soon as you submit your translation it will instantly overwrite any strings in the stored translation that you did not leave empty!<br>To install the translation, just copy the array in chat_strings.php and replace the array $translate in chat.php with the new one.</span>
                     <?php
                         foreach ($existing_transl as $orig => $arr_transl) {
-                            echo '<hr><label style="max-width:100vw;"><pre>'.htmlentities($orig).'</pre><textarea name="'.md5($orig).'" rows="'.(substr_count($orig, "\n")+1).'" placeholder="Write your translation for the above string here.">'.((isset($arr_transl[$lang])) ? htmlentities($arr_transl[$lang]) : '').'</textarea></label>';
+                            echo '<hr><label style="max-width:100vw;"><pre>'.htmlentities($orig).'</pre><textarea lang="'.$lang.'" name="'.md5($orig).'" rows="'.(substr_count($orig, "\n")+1).'" placeholder="Write your translation for the above string here.">'.((isset($arr_transl[$lang])) ? htmlentities($arr_transl[$lang]) : '').'</textarea></label>';
                         }
                     ?>
                     <hr>
