@@ -402,12 +402,13 @@
     
     $untranslated = [];
     /* Translation notice:
-        * All translation strings are defined in the section "translation strings" below, in the form of arrays.   
-        * The whole section is inside an array, whose elements have the English string as their key and an array with translations of that single string as their value.   
-        * Each translation subarray has keys for each language that that specific string is translated to (a two-letter HTML language code, as accepted in the HTML lang="" attribute) with the corresponding value being the translated string.   
-        * Some strings contain words in squirly braces {}. These are variables that _MUST NOT_ be translated. They are placeholders for values to be inserted after translation by simple string replacement; changing these in any way can disrupt functionality that involves the changed strings.   
-        * Translation strings _MUST NOT_ include braces `(` and `)`, as those confuse the string extraction script; they should be replaced with the appropriate escape sequences, for example &lpar; and &rpar; in HTML and HTML-embedded CSS.   
-        */
+     * It is recommended to use translate.php to translate chat.php (if you haven't got that, look for it in the GitHub repo https://github.com/Lampe2020/jsfc)!
+     * All translation strings are defined in the section "translation strings" below, in the form of arrays.   
+     * The whole section is inside an array, whose elements have the English string as their key and an array with translations of that single string as their value.   
+     * Each translation subarray has keys for each language that that specific string is translated to (a two-letter HTML language code, as accepted in the HTML lang="" attribute) with the corresponding value being the translated string.   
+     * Some strings contain words in squirly braces {}. These are variables that _MUST NOT_ be translated. They are placeholders for values to be inserted after translation by simple string replacement; changing these in any way can disrupt functionality that involves the changed strings.   
+     * Translation strings _MUST NOT_ include braces `(` and `)`, as those confuse the string extraction script; they should be replaced with the appropriate escape sequences, for example &lpar; and &rpar; in HTML and HTML-embedded CSS.   
+     */
     // ---------- BEGIN translation strings ----------
     $translations = array (
         'Server-side misconfiguration' => 
