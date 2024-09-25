@@ -60,7 +60,7 @@
         ini_set('display_errors', 'On');
     }
     
-    $release_version = '0.2.0';
+    $release_version = '0.2.1';
     $release_channel = 'alpha';
     
     $supported_langs = ['en','de','sv'];    // This array contains every language code that is supported by this script; needs to manually be updated if a new version is added
@@ -383,6 +383,7 @@
                 $result
             );
         }
+        /* Deactivated because it is no longer needed with the automatic string extraction and it breaks the layout.
         global $do_debug;
         if ($do_debug) {
             global $lang;
@@ -396,7 +397,7 @@
                     "    <pre>Untranslated messages (in order of first translation request): \n".htmlentities(ob_get_clean())."        </pre>\n    </body>\n</html>",
                     $result);
             }
-        }
+        } */
         return $result;
     }
     
@@ -413,7 +414,7 @@
     $translations = array (
         'Server-side misconfiguration' => 
         array (
-            'sv' => 'Serversidigt konfigurationsfel',
+            'sv' => 'Konfigurationsfel på servern',
             'de' => 'Serverseitige Fehlkonfiguration',
         ),
         'This chat page is non-functional because of an internal error.' => 
@@ -1270,6 +1271,9 @@ If this wasn't you, just ignore this email and the signin attempt will not succe
 Greetings, the signin bot at {site_name}")),
                                 ['From'=>$site_admin]  // Incase the user has a question they can contact the admin
                             );
+                            if ($do_debug) {
+                                file_put_contents($secret_data_location.'/'.$_POST['username'].'.onetimecode', ((string)$_SESSION['signin_otc']));  // If debug mode is enabled, store the OTC on the server in a file, because sending mail from the development environment should not necessarily be expected to work!
+                            }
                         }
                         ob_start();
                     ?><form method="POST" action="<?php echo $whereami; ?>?action=confirmsignup" enctype="multipart/form-data">
@@ -1323,6 +1327,9 @@ Greetings, the signin bot at {site_name}")),
                             $secret_data_location.'/user/by-email/'.md5($signin_details['email']).'.json'
                         );
                         session_destroy();  // Get rid of the signup session, create a new one on login.
+                        if ($do_debug) {
+                            @unlink($secret_data_location.'/'.$signin_details['username'].'.onetimecode');  // If debug mode is enabled and the OTC has successfully been used, delete it from the disk.
+                        }
                         die(untemplate([
                             'page_title' => translate('Signin success!'),
                             'page_desc' => translate('Your account has been successfully created!'),
@@ -1470,15 +1477,17 @@ Greetings, the signin bot at {site_name}")),
                         ], $emptydoc));
                     }
                 }
-                //TODO: Implement this!
                 $formatted_chat = '';
                 if (!isset($_SESSION['chat_msg_count'])) {
                     $_SESSION['chat_msg_count'] = 0xff; // Set this to 255 by default, can later probably be changed and should get a configurable limit.
                 }
-                //TODO: Format the chat here!
                 $chatlog_location = $secret_data_location.'/chatroom/'.$_SESSION['chatroom'].'.log';
                 if (is_file($chatlog_location)) {
                     $chatlog = file_get_contents($chatlog_location);
+                } else if ($_SESSION['chatroom']===$main_chat_room_name) {
+                    mkpath(dirname($chatlog_location));
+                    file_put_contents($chatlog_location, '');
+                    $chatlog = '';
                 } else {
                     die(untemplate([
                         'page_title' => translate('Chat not found!'),
@@ -1571,7 +1580,29 @@ Greetings, the signin bot at {site_name}")),
                     @mkpath(dirname($loglocation)); // Ensure that the folder for the chat logs exists
                 }
                 if (isset($_POST['msg']) && $_POST['msg']!=='') {
-                    if (isset($_POST['answeringto']) && str_contains($_POST['answeringto'], ':')) {
+                    if ($_POST['msg'][0]==='/') {   // Command mode activated!
+                        //TODO: Implement commands!
+                        $cmd_output = '';
+                        if (str_starts_with('/exit', $_POST['msg'])) {
+                            if ($_SESSION['chatroom']===$main_chat_room_name) {
+                                session_destroy();  // Log the user out
+                                $cmd_output = translate('You have been logged out.');
+                            } else {
+                                $_SESSION['chatroom'] = $main_chat_room_name;   // Move the user back to the main chat room
+                                $cmd_output = untemplate([
+                                    'general' => $main_chat_room_name
+                                ], translate('You entered chatroom "{general}".'));
+                            }
+                        } else {
+                            $cmd_output = translate('You cannot run the specified command because it either does not exist or you do not have the necessary permissions to access it.');
+                        }
+                        die(untemplate([
+                            'page_title' => translate('Command executed!'),
+                            'page_desc' => base64_encode('Oompah loompah!'),
+                            'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.$chat_min_msg_delay.'; url='.$whereami.'?action=getwriteform">',
+                            'page_body' => $cmd_output  // Just return the command output.
+                        ], $emptydoc));
+                    } else if (isset($_POST['answeringto']) && str_contains($_POST['answeringto'], ':')) {
                         [$answerto_username, $answerto_msgid] = explode(':', $_POST['answeringto'], 2);
                         $answeringto = htmlentities($answerto_username).':'.((int)$answerto_msgid);
                     } else {
@@ -1604,7 +1635,7 @@ Greetings, the signin bot at {site_name}")),
                     die(untemplate([
                         'page_title' => translate('Please log in first!'),
                         'page_desc' => translate('WgXcQ'),
-                        'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.$autoredirect_delay.'; url='.$whereami.'">',
+                        'additional_headers' => '<meta name="robots" content="noindex"><meta http-equiv="refresh" content="'.$autoredirect_delay.'">',
                         'page_body' => translate('You have to be logged in to send messages!')
                     ], $emptydoc));
                 }
